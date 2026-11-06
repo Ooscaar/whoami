@@ -1,33 +1,49 @@
 ---
+import { Image } from "astro:assets";
 import Layout from "../layouts/Layout.astro";
-import { tracks } from "../data/music";
+import { artists } from "../data/music";
 ---
 
-<Layout title="Music — Òscar Pérez" description="Music Òscar Pérez is listening to">
+<Layout title="Music — Òscar Pérez" description="Music Òscar Pérez loves">
   <header>
     <h1>music</h1>
-    <p class="muted">what I've been listening to.</p>
+    <p class="muted">artists I love.</p>
   </header>
 
-  <ol>
+  <ul>
     {
-      tracks.map((track) => (
+      artists.map((artist) => (
         <li>
-          <div class="row">
-            {track.href ? (
-              <a href={track.href} target="_blank" rel="noopener noreferrer">
-                {track.title}
-              </a>
-            ) : (
-              <span>{track.title}</span>
-            )}
-            <span class="muted">{track.artist}</span>
+          <Image
+            src={artist.image}
+            alt={artist.name}
+            width={48}
+            height={48}
+            densities={[1, 2, 3]}
+          />
+          <div class="text">
+            <span>{artist.name}</span>
+            <span class="muted">{artist.note}</span>
           </div>
-          {track.note && <p class="note muted">{track.note}</p>}
         </li>
       ))
     }
-  </ol>
+  </ul>
+
+  <p class="credits muted">
+    photos from wikimedia commons:{" "}
+    {
+      artists.map((artist, i) => (
+        <span>
+          {i > 0 && ", "}
+          <a href={artist.credit.href} target="_blank" rel="noopener noreferrer">
+            {artist.credit.author}
+          </a>{" "}
+          ({artist.credit.license})
+        </span>
+      ))
+    }
+  </p>
 </Layout>
 
 <style>
@@ -37,14 +53,17 @@ import { tracks } from "../data/music";
     gap: 0.25rem;
   }
 
-  ol {
+  ul {
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
   li {
-    padding: 0.875rem 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 0;
     border-top: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
   }
 
@@ -52,16 +71,42 @@ import { tracks } from "../data/music";
     border-bottom: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
   }
 
-  .row {
+  /* Same treatment as the home portrait: black and white until hovered or tapped. */
+  li img {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 2px;
+    filter: grayscale(1);
+    opacity: 0.8;
+    transition:
+      filter 500ms ease,
+      opacity 500ms ease;
+  }
+
+  li:hover img,
+  li:active img {
+    filter: none;
+    opacity: 1;
+  }
+
+  .text {
+    flex: 1;
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     gap: 1rem;
   }
 
-  .note {
-    margin-top: 0.25rem;
-    font-size: 12px;
-    line-height: 1.5;
+  .credits {
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 480px) {
+    .text {
+      flex-direction: column;
+      gap: 0;
+    }
   }
 </style>
