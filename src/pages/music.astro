@@ -1,0 +1,67 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { tracks } from "../data/music";
+---
+
+<Layout title="Music — Oscar Perez" description="Music Oscar Perez is listening to">
+  <header>
+    <h1>music</h1>
+    <p class="muted">what I've been listening to.</p>
+  </header>
+
+  <ol>
+    {
+      tracks.map((track) => (
+        <li>
+          <div class="row">
+            {track.href ? (
+              <a href={track.href} target="_blank" rel="noopener noreferrer">
+                {track.title}
+              </a>
+            ) : (
+              <span>{track.title}</span>
+            )}
+            <span class="muted">{track.artist}</span>
+          </div>
+          {track.note && <p class="note muted">{track.note}</p>}
+        </li>
+      ))
+    }
+  </ol>
+</Layout>
+
+<style>
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    padding: 0.875rem 0;
+    border-top: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
+  }
+
+  li:last-child {
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
+  }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+  }
+
+  .note {
+    margin-top: 0.25rem;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+</style>

@@ -11,6 +11,7 @@ const { title, description = "Oscar Perez" } = Astro.props;
 const nav = [
   { label: "home", href: "/" },
   { label: "photos", href: "/photos" },
+  { label: "music", href: "/music" },
 ];
 
 const current = Astro.url.pathname.replace(/\/$/, "") || "/";
