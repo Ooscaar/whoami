@@ -1,10 +1,21 @@
+---
+import { Font } from "astro:assets";
+---
+
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Not found</title>
+    <Font cssVariable="--font-geist-mono" />
   </head>
   <body>
     <h1>404 — Not found</h1>
     <a href="/">Go home</a>
   </body>
 </html>
+
+<style>
+  body {
+    font-family: var(--font-geist-mono);
+  }
+</style>
