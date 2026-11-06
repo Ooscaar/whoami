@@ -14,7 +14,7 @@ const nav = [
   { label: "music", href: "/music" },
 ];
 
-const current = Astro.url.pathname.replace(/\/$/, "") || "/";
+const current = Astro.url.pathname.replace(/(\.html|\/)$/, "").replace(/\/index$/, "") || "/";
 
 // Like deadsimplesites.com's "Last updated" line — stamped at build time.
 const updated = new Date().toLocaleDateString("en-US", {
