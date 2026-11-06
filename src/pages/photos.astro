@@ -1,0 +1,30 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Gallery from "../components/Gallery.astro";
+---
+
+<Layout title="Photos — Oscar Perez" description="Photos by Oscar Perez">
+  <header>
+    <h1>photos</h1>
+    <p class="muted">click a photo to see its story.</p>
+  </header>
+
+  <div class="bleed">
+    <Gallery />
+  </div>
+</Layout>
+
+<style>
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  /* Let the gallery spread wider than the text column, still centered. */
+  .bleed {
+    width: min(64rem, 100vw - 3rem);
+    margin-left: 50%;
+    translate: -50% 0;
+  }
+</style>

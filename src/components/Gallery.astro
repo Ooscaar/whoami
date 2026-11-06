@@ -20,7 +20,7 @@ import { photos } from "../data/gallery";
             src={photo.src}
             alt={photo.title}
             widths={[400, 800]}
-            sizes="(max-width: 448px) 100vw, 320px"
+            sizes="(max-width: 520px) 100vw, (max-width: 760px) 50vw, 330px"
             loading={i < 3 ? "eager" : "lazy"}
           />
         </button>
@@ -66,7 +66,7 @@ import { photos } from "../data/gallery";
 <style>
   /* Masonry: columns keep each photo's natural aspect ratio. */
   .gallery {
-    columns: 2 200px;
+    columns: 3 220px;
     column-gap: 1rem;
   }
 

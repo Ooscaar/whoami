@@ -7,6 +7,13 @@ interface Props {
 }
 
 const { title, description = "Oscar Perez" } = Astro.props;
+
+const nav = [
+  { label: "home", href: "/" },
+  { label: "photos", href: "/photos" },
+];
+
+const current = Astro.url.pathname.replace(/\/$/, "") || "/";
 ---
 
 <html lang="en">
@@ -18,7 +25,20 @@ const { title, description = "Oscar Perez" } = Astro.props;
     <Font cssVariable="--font-geist-mono" preload />
   </head>
   <body>
-    <slot />
+    <div class="page">
+      <nav aria-label="Main">
+        {
+          nav.map((item) => (
+            <a href={item.href} aria-current={current === item.href ? "page" : undefined}>
+              {item.label}
+            </a>
+          ))
+        }
+      </nav>
+      <main>
+        <slot />
+      </main>
+    </div>
   </body>
 </html>
 
@@ -79,5 +99,43 @@ const { title, description = "Oscar Perez" } = Astro.props;
   a:hover,
   a:focus-visible {
     text-decoration-color: var(--foreground-color);
+  }
+
+  /* One narrow, left-aligned column — the dead simple layout. */
+  .page {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  main {
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+    padding-top: 10vh;
+  }
+
+  .muted {
+    color: var(--muted);
+  }
+</style>
+
+<style>
+  nav {
+    display: flex;
+    gap: 2rem;
+    font-size: 13px;
+  }
+
+  nav a {
+    text-decoration: none;
+    opacity: 0.5;
+    transition: opacity 150ms;
+  }
+
+  nav a:hover,
+  nav a:focus-visible,
+  nav a[aria-current="page"] {
+    opacity: 1;
   }
 </style>

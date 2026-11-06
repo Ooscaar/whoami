@@ -1,6 +1,5 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import Gallery from "../components/Gallery.astro";
 
 const links = [
   { label: "github", href: "https://github.com/Ooscaar" },
@@ -10,56 +9,35 @@ const links = [
 ---
 
 <Layout title="Oscar Perez">
-  <main>
-    <header>
-      <h1>Oscar Perez</h1>
-      <p class="muted">hello world<span class="cursor" aria-hidden="true"></span></p>
-    </header>
+  <header>
+    <h1>Oscar Perez</h1>
+    <p class="muted">hello world<span class="cursor" aria-hidden="true"></span></p>
+  </header>
 
-    <section class="about">
-      <p>Hi, I'm Oscar.</p>
-      <p class="links">
-        {
-          links.map((link, i) => (
-            <span>
-              {i > 0 && <span class="sep"> / </span>}
-              <a href={link.href} target="_blank" rel="noopener noreferrer">
-                {link.label}
-              </a>
-            </span>
-          ))
-        }
-      </p>
-    </section>
+  <section class="about">
+    <p>Hi, I'm Oscar.</p>
+    <p>
+      {
+        links.map((link, i) => (
+          <span>
+            {i > 0 && <span class="sep"> / </span>}
+            <a href={link.href} target="_blank" rel="noopener noreferrer">
+              {link.label}
+            </a>
+          </span>
+        ))
+      }
+    </p>
+  </section>
 
-    <section aria-labelledby="photos-heading">
-      <h2 id="photos-heading">photos</h2>
-      <Gallery />
-    </section>
-
-    <footer class="muted">© {new Date().getFullYear()} Oscar Perez</footer>
-  </main>
+  <footer class="muted">© {new Date().getFullYear()} Oscar Perez</footer>
 </Layout>
 
 <style>
-  /* One narrow, left-aligned column — the dead simple layout. */
-  main {
-    max-width: 40rem;
-    margin: 0 auto;
-    padding: 12vh 1.5rem 4rem;
-    display: flex;
-    flex-direction: column;
-    gap: 4rem;
-  }
-
   header {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-  }
-
-  .muted {
-    color: var(--muted);
   }
 
   .cursor {
@@ -92,12 +70,6 @@ const links = [
 
   .sep {
     opacity: 0.4;
-  }
-
-  h2 {
-    margin-bottom: 1.5rem;
-    font-size: 13px;
-    color: var(--muted);
   }
 
   footer {
