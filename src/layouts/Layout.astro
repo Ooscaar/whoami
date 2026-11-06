@@ -6,10 +6,9 @@ interface Props {
   description?: string;
 }
 
-const { title, description = "Oscar Perez" } = Astro.props;
+const { title, description = "Òscar Pérez" } = Astro.props;
 
 const nav = [
-  { label: "home", href: "/" },
   { label: "photos", href: "/photos" },
   { label: "music", href: "/music" },
 ];
@@ -28,13 +27,16 @@ const current = Astro.url.pathname.replace(/\/$/, "") || "/";
   <body>
     <div class="page">
       <nav aria-label="Main">
-        {
-          nav.map((item) => (
-            <a href={item.href} aria-current={current === item.href ? "page" : undefined}>
-              {item.label}
-            </a>
-          ))
-        }
+        <a href="/" class="name" aria-current={current === "/" ? "page" : undefined}>Òscar Pérez</a>
+        <div class="links">
+          {
+            nav.map((item) => (
+              <a href={item.href} aria-current={current === item.href ? "page" : undefined}>
+                {item.label}
+              </a>
+            ))
+          }
+        </div>
       </nav>
       <main>
         <slot />
@@ -124,8 +126,15 @@ const current = Astro.url.pathname.replace(/\/$/, "") || "/";
 <style>
   nav {
     display: flex;
+    justify-content: space-between;
+    align-items: baseline;
     gap: 2rem;
     font-size: 13px;
+  }
+
+  .links {
+    display: flex;
+    gap: 1.5rem;
   }
 
   nav a {
@@ -136,7 +145,8 @@ const current = Astro.url.pathname.replace(/\/$/, "") || "/";
 
   nav a:hover,
   nav a:focus-visible,
-  nav a[aria-current="page"] {
+  nav a[aria-current="page"],
+  nav .name {
     opacity: 1;
   }
 </style>
