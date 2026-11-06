@@ -1,5 +1,6 @@
 import type { ImageMetadata } from "astro";
 
+import andorraSkiing from "../assets/gallery/2025-andorra-skiing.jpg";
 import barcelonaCampNou from "../assets/gallery/2025-barcelona-camp-nou.jpg";
 import barcelonaTibidabo from "../assets/gallery/2025-barcelona-tibidabo.jpg";
 import madridAtleticoBarcelona from "../assets/gallery/2026-madrid-atletico-barcelona.jpg";
@@ -27,5 +28,10 @@ export const photos: Photo[] = [
     src: barcelonaCampNou,
     title: "Camp Nou, Barcelona, 2025",
     description: "Barça vs Atlético Madrid under the lights.",
+  },
+  {
+    src: andorraSkiing,
+    title: "Andorra, 2025",
+    description: "On the slopes with my Armadas.",
   },
 ];
