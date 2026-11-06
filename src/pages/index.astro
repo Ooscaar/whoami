@@ -12,9 +12,15 @@ const links = [
 
 <Layout title="Òscar Pérez">
   <section class="about">
-    <div class="me">
-      <Image src={me} alt="Òscar Pérez" width={96} height={96} densities={[1, 2, 3]} loading="eager" />
-    </div>
+    <Image
+      class="me"
+      src={me}
+      alt="Òscar Pérez on the sand dunes"
+      width={88}
+      height={88}
+      densities={[1, 2, 3]}
+      loading="eager"
+    />
     <h1>Hi, I'm Òscar.</h1>
     <!-- Placeholder copy: replace the [bracketed] parts. -->
     <p>
@@ -43,42 +49,39 @@ const links = [
 
 <style>
   .about {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    display: flow-root; /* contain the floated photo */
   }
 
-  /* A little polaroid: tilted, straightens (and wiggles) on hover or tap. */
+  .about p {
+    margin-top: 1rem;
+  }
+
+  /* Small and secondary: floats beside the intro, black and white until hovered or tapped. */
   .me {
-    width: fit-content;
-    margin-bottom: 1rem;
-    padding: 4px;
-    background: #fff;
-    border-radius: 3px;
-    box-shadow:
-      0 1px 2px color-mix(in srgb, var(--foreground-color) 10%, transparent),
-      0 6px 16px -6px color-mix(in srgb, var(--foreground-color) 25%, transparent);
-    rotate: -4deg;
-    transition: rotate 400ms cubic-bezier(0.34, 1.56, 0.64, 1), scale 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    float: right;
+    width: 88px;
+    height: 88px;
+    margin: 0.25rem 0 0.5rem 1.5rem;
+    border-radius: 2px;
+    filter: grayscale(1);
+    opacity: 0.85;
+    transition:
+      filter 500ms ease,
+      opacity 500ms ease;
     -webkit-tap-highlight-color: transparent;
   }
 
   .me:hover,
   .me:active {
-    rotate: 2deg;
-    scale: 1.06;
+    filter: none;
+    opacity: 1;
   }
 
-  .me img {
-    display: block;
-    width: 96px;
-    height: 96px;
-    border-radius: 1px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
+  @media (max-width: 480px) {
     .me {
-      transition: none;
+      width: 64px;
+      height: 64px;
+      margin-left: 1rem;
     }
   }
 
