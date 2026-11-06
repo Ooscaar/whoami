@@ -3,6 +3,7 @@ import type { ImageMetadata } from "astro";
 import andorraSkiing from "../assets/gallery/2025-andorra-skiing.jpg";
 import barcelonaCampNou from "../assets/gallery/2025-barcelona-camp-nou.jpg";
 import barcelonaTibidabo from "../assets/gallery/2025-barcelona-tibidabo.jpg";
+import tarifaSunset from "../assets/gallery/2021-tarifa-sunset.jpg";
 import madridAtleticoBarcelona from "../assets/gallery/2026-madrid-atletico-barcelona.jpg";
 
 export interface Photo {
@@ -33,5 +34,10 @@ export const photos: Photo[] = [
     src: andorraSkiing,
     title: "Andorra, 2025",
     description: "On the slopes with my Armadas.",
+  },
+  {
+    src: tarifaSunset,
+    title: "Tarifa, 2021",
+    description: "Sunset at Tarifa, heading into the sea with friends.",
   },
 ];
