@@ -4,6 +4,7 @@ import andorraSkiing from "../assets/gallery/2025-andorra-skiing.jpg";
 import barcelonaCampNou from "../assets/gallery/2025-barcelona-camp-nou.jpg";
 import barcelonaTibidabo from "../assets/gallery/2025-barcelona-tibidabo.jpg";
 import tarifaSunset from "../assets/gallery/2021-tarifa-sunset.jpg";
+import switzerlandOeschinensee from "../assets/gallery/2023-switzerland-oeschinensee.jpg";
 import madridAtleticoBarcelona from "../assets/gallery/2026-madrid-atletico-barcelona.jpg";
 
 export interface Photo {
@@ -39,5 +40,10 @@ export const photos: Photo[] = [
     src: tarifaSunset,
     title: "Tarifa, 2021",
     description: "Sunset at Tarifa, heading into the sea with friends.",
+  },
+  {
+    src: switzerlandOeschinensee,
+    title: "Oeschinensee, Switzerland, 2023",
+    description: "A summer day by the lake, below the Blüemlisalp.",
   },
 ];
