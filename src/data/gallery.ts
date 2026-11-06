@@ -19,7 +19,7 @@ export const photos: Photo[] = [
   },
   {
     src: barcelonaTibidabo,
-    title: "Tibidabo",
-    description: "The Ferris wheel at Tibidabo at sunset. 2025, Barcelona.",
+    title: "Tibidabo, Barcelona, 2025",
+    description: "The Ferris wheel at sunset.",
   },
 ];
