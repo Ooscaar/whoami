@@ -10,15 +10,15 @@ export interface Artist {
   /** A short line about them. */
   note: string;
   image: ImageMetadata;
-  /** Favorite song: Apple's official 30-second preview, linking to the full track on Apple Music. */
-  song: { title: string; preview: string; href: string };
+  /** Favorite song: Apple's official 30-second preview. */
+  song: { title: string; preview: string };
   /** Photo credit — the images are from Wikimedia Commons; the CC BY-SA ones need attribution. */
   credit: { author: string; license: string; href: string };
 }
 
 // To add an artist: drop a square photo in src/assets/music, import it above, and add an entry here.
 // Song previews come from the iTunes Search API (https://itunes.apple.com/search?entity=song&term=…):
-// use the track's `previewUrl` and `trackViewUrl`.
+// use the track's `previewUrl`.
 export const artists: Artist[] = [
   {
     name: "Cruz Cafuné",
@@ -27,7 +27,6 @@ export const artists: Artist[] = [
     song: {
       title: "Cangrinaje",
       preview: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/04/a9/12/04a912f9-ab13-151d-14fb-51bd28abe967/mzaf_2074301044289205018.plus.aac.p.m4a",
-      href: "https://music.apple.com/album/cangrinaje/1687342102?i=1687342912",
     },
     credit: {
       author: "Mordecai30",
@@ -42,7 +41,6 @@ export const artists: Artist[] = [
     song: {
       title: "Worst Behavior",
       preview: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/de/6b/e7/de6be7e2-a597-20d8-deed-44e554391651/mzaf_7294144456762347742.plus.aac.p.m4a",
-      href: "https://music.apple.com/album/worst-behavior/1440819797?i=1440820410",
     },
     credit: {
       author: "GabboT",
@@ -57,7 +55,6 @@ export const artists: Artist[] = [
     song: {
       title: "Another Day in Paradise",
       preview: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/b9/90/d2/b990d24f-2025-b714-f1a3-5c6ec22afdb5/mzaf_1078964162181226497.plus.aac.p.m4a",
-      href: "https://music.apple.com/album/another-day-in-paradise-2016-remastered/1108855980?i=1108856260",
     },
     credit: {
       author: "Atlantic Records, 1986",
@@ -72,7 +69,6 @@ export const artists: Artist[] = [
     song: {
       title: "Paseo",
       preview: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/b5/95/0c/b5950cd4-3b67-f66a-b05f-64b235dcd5df/mzaf_15093117827919104157.plus.aac.p.m4a",
-      href: "https://music.apple.com/album/paseo/279643868?i=279643884",
     },
     credit: {
       author: "livepict.com",

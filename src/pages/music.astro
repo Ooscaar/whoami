@@ -39,16 +39,6 @@ import { artists } from "../data/music";
                   {artist.song.title}
                 </button>
                 <span class="time" aria-hidden="true" />
-                <a
-                  class="out"
-                  href={artist.song.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`${artist.song.title} on Apple Music`}
-                  title="full song on apple music"
-                >
-                  ↗
-                </a>
               </span>
             </div>
             <span class="muted">{artist.note}</span>
@@ -60,7 +50,7 @@ import { artists } from "../data/music";
   </ul>
 
   <p class="credits muted">
-    30-second previews from apple music (↗ for the full song). photos from wikimedia commons:{" "}
+    photos from wikimedia commons:{" "}
     {
       artists.map((artist, i) => (
         <span>
@@ -91,6 +81,28 @@ import { artists } from "../data/music";
     current = null;
   };
 
+  // Apple serves the previews as "audio/x-m4p", which some browsers (Firefox) refuse to play.
+  // Fetch the file and relabel it as plain AAC/MP4, which every browser accepts.
+  const sources = new Map<string, Promise<string>>();
+  const load = (url: string) => {
+    if (!sources.has(url)) {
+      sources.set(
+        url,
+        fetch(url)
+          .then((response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.arrayBuffer();
+          })
+          .then((data) => URL.createObjectURL(new Blob([data], { type: "audio/mp4" })))
+          .catch((error) => {
+            sources.delete(url);
+            throw error;
+          }),
+      );
+    }
+    return sources.get(url)!;
+  };
+
   const format = (seconds: number) => `0:${String(Math.floor(seconds)).padStart(2, "0")}`;
 
   audio.addEventListener("timeupdate", () => {
@@ -110,8 +122,16 @@ import { artists } from "../data/music";
         current = item;
         item.classList.add("playing");
         item.querySelector(".toggle")!.setAttribute("aria-pressed", "true");
-        audio.src = item.dataset.preview!;
-        audio.play().catch(stop);
+        load(item.dataset.preview!)
+          .then((src) => {
+            if (current !== item) return;
+            audio.src = src;
+            return audio.play();
+          })
+          .catch((error) => {
+            console.error("Couldn't play the preview:", error);
+            if (current === item) stop();
+          });
       });
     });
   });
@@ -260,16 +280,6 @@ import { artists } from "../data/music";
     font-variant-numeric: tabular-nums;
   }
 
-  .out {
-    text-decoration: none;
-    opacity: 0.6;
-    transition: opacity 150ms;
-  }
-
-  .out:hover,
-  .out:focus-visible {
-    opacity: 1;
-  }
 
   /* A hairline along the bottom of the row that fills as the preview plays. */
   .progress {
