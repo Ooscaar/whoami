@@ -1,5 +1,6 @@
 import type { ImageMetadata } from "astro";
 
+import barcelonaTibidabo from "../assets/gallery/2025-barcelona-tibidabo.jpg";
 import madridAtleticoBarcelona from "../assets/gallery/2026-madrid-atletico-barcelona.jpg";
 
 export interface Photo {
@@ -15,5 +16,10 @@ export const photos: Photo[] = [
     src: madridAtleticoBarcelona,
     title: "Atlético Madrid vs Barcelona",
     description: "Zernio 1M ARR celebration and Atlético Madrid vs Barcelona, Champions League. 2026, Madrid.",
+  },
+  {
+    src: barcelonaTibidabo,
+    title: "Tibidabo",
+    description: "The Ferris wheel at Tibidabo at sunset. 2025, Barcelona.",
   },
 ];
