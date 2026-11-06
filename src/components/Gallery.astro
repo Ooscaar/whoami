@@ -181,6 +181,13 @@ const large = await Promise.all(
     let drag: { id: number; x: number; samples: { x: number; t: number }[] } | null = null;
     let moved = 0;
 
+    // A tap on empty space (not the photo) closes, like clicking outside. Handled on `click`
+    // rather than pointerup, so the tap can't fall through to the page underneath.
+    track.addEventListener("click", (e) => {
+      if (moved >= 6) return; // that was a swipe
+      if (!(document.elementFromPoint(e.clientX, e.clientY) instanceof HTMLImageElement)) close();
+    });
+
     track.addEventListener("pointerdown", (e) => {
       if (!e.isPrimary || e.button !== 0 || animating) return;
       try {
@@ -210,9 +217,7 @@ const large = await Promise.all(
       drag = null;
 
       if (moved < 6) {
-        // A tap on empty space (not the photo) closes, like clicking outside.
-        setOffset(0);
-        if (!(document.elementFromPoint(e.clientX, e.clientY) instanceof HTMLImageElement)) close();
+        setOffset(0); // a tap: the click handler above decides whether to close
         return;
       }
       const projected = dx + velocity * 280;
@@ -269,6 +274,9 @@ const large = await Promise.all(
 
   /* Full-screen native <dialog> with a plain, quick fade. */
   .viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
     width: 100vw;
     height: 100dvh;
     max-width: none;
@@ -297,6 +305,11 @@ const large = await Promise.all(
     .viewer[open] {
       opacity: 0;
     }
+  }
+
+  /* While fading out, it's only a picture: ignore taps and clicks. */
+  .viewer:not([open]) {
+    pointer-events: none;
   }
 
   .viewer:focus {
