@@ -65,10 +65,10 @@ const large = await Promise.all(
 
   // Wait until this exact <img> is decoded, so the viewer never shows a blank or the
   // previous photo for a frame. Never block for long.
-  const ready = (img: HTMLImageElement) =>
+  const ready = (img: HTMLImageElement, ms = 1500) =>
     Promise.race([
       img.decode().catch(() => {}),
-      new Promise((resolve) => setTimeout(resolve, 1500)),
+      new Promise((resolve) => setTimeout(resolve, ms)),
     ]);
 
   // Runs on every client-side navigation (ClientRouter), not just the first load.
@@ -246,10 +246,24 @@ const large = await Promise.all(
       }
       try {
         await Promise.all(running.map((a) => a.finished));
+        if (to) {
+          // Landed exactly on the thumbnail. Show the thumbnail underneath, make sure it's
+          // decoded (it may have been dropped while hidden), then fade the photo into it, so
+          // the swap can't blink.
+          thumb.style.visibility = "";
+          await ready(thumb, 300);
+          if (state !== "closing") return;
+          const handoff = photo.animate({ opacity: [1, 0] }, { duration: 120, fill: "both" });
+          running.push(handoff);
+          await handoff.finished;
+        }
       } catch {
         return; // cancelled: the dialog was closed some other way
       }
-      dialog.close(); // the "close" handler below tidies up in the same frame
+      // Tidy up and close in the same task, so no frame shows a half-reset state.
+      settle();
+      state = "closed";
+      dialog.close();
     };
 
     items.forEach(({ button, full }, i) => {
@@ -265,6 +279,7 @@ const large = await Promise.all(
       e.preventDefault();
       close();
     });
+    // Closed some other way (e.g. a forced Escape): reset right away.
     dialog.addEventListener("close", () => {
       settle();
       state = "closed";
