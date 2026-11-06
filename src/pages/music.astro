@@ -7,14 +7,15 @@ import { artists } from "../data/music";
 <Layout title="Music — Òscar Pérez" description="Music Òscar Pérez loves">
   <header>
     <h1>music</h1>
-    <p class="muted">artists I love. tap a photo to hear my favorite song.</p>
+    <p class="muted">artists I love, and my favorite song by each. press play to listen.</p>
   </header>
 
   <ul>
     {
       artists.map((artist) => (
         <li data-preview={artist.song.preview}>
-          <button type="button" class="play" aria-pressed="false" aria-label={`Play ${artist.song.title} by ${artist.name}`}>
+          {/* The photo is a big, mouse-friendly play target; the song button below is the accessible one. */}
+          <button type="button" class="play" tabindex="-1" aria-hidden="true">
             <Image src={artist.image} alt="" width={48} height={48} densities={[1, 2, 3]} />
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
               <path class="icon-play" d="M5 3.5v9l7.5-4.5z" />
@@ -24,9 +25,31 @@ import { artists } from "../data/music";
           <div class="text">
             <div class="who">
               <span>{artist.name}</span>
-              <a class="song muted" href={artist.song.href} target="_blank" rel="noopener noreferrer">
-                {artist.song.title}
-              </a>
+              <span class="song muted">
+                <button
+                  type="button"
+                  class="toggle"
+                  aria-pressed="false"
+                  aria-label={`Play ${artist.song.title} by ${artist.name}`}
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path class="icon-play" d="M5 3.5v9l7.5-4.5z" />
+                    <path class="icon-pause" d="M4.5 3.5h2.5v9H4.5zM9 3.5h2.5v9H9z" />
+                  </svg>
+                  {artist.song.title}
+                </button>
+                <span class="time" aria-hidden="true" />
+                <a
+                  class="out"
+                  href={artist.song.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${artist.song.title} on Apple Music`}
+                  title="full song on apple music"
+                >
+                  ↗
+                </a>
+              </span>
             </div>
             <span class="muted">{artist.note}</span>
           </div>
@@ -37,7 +60,7 @@ import { artists } from "../data/music";
   </ul>
 
   <p class="credits muted">
-    30-second previews from apple music. photos from wikimedia commons:{" "}
+    30-second previews from apple music (↗ for the full song). photos from wikimedia commons:{" "}
     {
       artists.map((artist, i) => (
         <span>
@@ -61,27 +84,32 @@ import { artists } from "../data/music";
   const stop = () => {
     audio.pause();
     current?.classList.remove("playing");
-    current?.querySelector(".play")?.setAttribute("aria-pressed", "false");
+    current?.querySelector(".toggle")?.setAttribute("aria-pressed", "false");
     current?.style.setProperty("--progress", "0");
+    const time = current?.querySelector(".time");
+    if (time) time.textContent = "";
     current = null;
   };
+
+  const format = (seconds: number) => `0:${String(Math.floor(seconds)).padStart(2, "0")}`;
 
   audio.addEventListener("timeupdate", () => {
     if (current && audio.duration) {
       current.style.setProperty("--progress", String(audio.currentTime / audio.duration));
+      current.querySelector(".time")!.textContent = format(audio.duration - audio.currentTime);
     }
   });
   audio.addEventListener("ended", stop);
 
   document.addEventListener("astro:page-load", () => {
-    document.querySelectorAll<HTMLButtonElement>("li[data-preview] .play").forEach((button) => {
+    document.querySelectorAll<HTMLButtonElement>("li[data-preview] :is(.play, .toggle)").forEach((button) => {
       button.addEventListener("click", () => {
         const item = button.closest("li")!;
         if (item === current) return stop();
         stop();
         current = item;
         item.classList.add("playing");
-        button.setAttribute("aria-pressed", "true");
+        item.querySelector(".toggle")!.setAttribute("aria-pressed", "true");
         audio.src = item.dataset.preview!;
         audio.play().catch(stop);
       });
@@ -132,11 +160,6 @@ import { artists } from "../data/music";
     -webkit-tap-highlight-color: transparent;
   }
 
-  .play:focus-visible {
-    outline: 1px solid var(--foreground-color);
-    outline-offset: 2px;
-  }
-
   /* Same treatment as the home portrait: black and white until hovered, tapped or playing. */
   .play img {
     width: 100%;
@@ -167,7 +190,6 @@ import { artists } from "../data/music";
   }
 
   .play:hover .icon,
-  .play:focus-visible .icon,
   .playing .icon {
     opacity: 1;
   }
@@ -195,8 +217,58 @@ import { artists } from "../data/music";
   }
 
   .song {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
     font-size: 12px;
     line-height: 1.5;
+  }
+
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: color 150ms;
+  }
+
+  .toggle:hover,
+  .toggle:focus-visible,
+  .playing .toggle {
+    color: var(--foreground-color);
+  }
+
+  .toggle:focus-visible {
+    outline: 1px solid var(--foreground-color);
+    outline-offset: 2px;
+  }
+
+  .toggle svg {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    fill: currentColor;
+  }
+
+  .time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .out {
+    text-decoration: none;
+    opacity: 0.6;
+    transition: opacity 150ms;
+  }
+
+  .out:hover,
+  .out:focus-visible {
+    opacity: 1;
   }
 
   /* A hairline along the bottom of the row that fills as the preview plays. */
