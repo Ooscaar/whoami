@@ -96,7 +96,6 @@ const large = await Promise.all(
     let state: "closed" | "opening" | "open" | "closing" = "closed";
     let running: Animation[] = [];
     let opened: Promise<void> = Promise.resolve();
-    let flyer: HTMLImageElement | null = null;
     let hidden: HTMLImageElement[] = [];
 
     const scrim = dialog.querySelector<HTMLElement>(".scrim")!;
@@ -163,27 +162,17 @@ const large = await Promise.all(
     const fade = (el: HTMLElement, from: number, to: number, ms: number) =>
       el.animate({ opacity: [from, to] }, { duration: ms, easing: EASE, fill: "both" });
 
-    // A copy of the photo that flies between the thumbnail and the viewer, above everything
-    // (the real one is clipped by the track). Sized to the viewer's box, so it stays sharp.
-    const fly = (src: string, big: DOMRect, small: DOMRect, opening: boolean, ms: number) => {
-      flyer = document.createElement("img");
-      flyer.src = src;
-      flyer.alt = "";
-      Object.assign(flyer.style, {
-        position: "fixed",
-        left: `${big.left}px`,
-        top: `${big.top}px`,
-        width: `${big.width}px`,
-        height: `${big.height}px`,
-        maxWidth: "none",
-        margin: "0",
-        transformOrigin: "0 0",
-        pointerEvents: "none",
-      });
-      dialog.append(flyer);
+    // The photo itself flies between the thumbnail and the viewer (no copy: a new <img> would
+    // need decoding and blink). The track stops clipping it meanwhile; its neighbours hide.
+    const fly = (photo: HTMLImageElement, small: DOMRect, opening: boolean, ms: number) => {
+      const big = photo.getBoundingClientRect();
+      track.style.overflow = "visible";
+      hide(imgOf(slides[0]), imgOf(slides[2]));
       const shrunk = `translate(${small.left - big.left}px, ${small.top - big.top}px) scale(${small.width / big.width})`;
-      const frames = opening ? [shrunk, "none"] : ["none", shrunk];
-      return flyer.animate({ transform: frames }, { duration: ms, easing: EASE, fill: "both" });
+      return photo.animate(
+        { transform: opening ? [shrunk, "none"] : ["none", shrunk], transformOrigin: ["0 0", "0 0"] },
+        { duration: ms, easing: EASE, fill: "both" },
+      );
     };
 
     const hide = (...imgs: HTMLImageElement[]) => {
@@ -195,8 +184,7 @@ const large = await Promise.all(
     const settle = () => {
       running.forEach((a) => a.cancel());
       running = [];
-      flyer?.remove();
-      flyer = null;
+      track.style.overflow = "";
       hidden.forEach((img) => (img.style.visibility = ""));
       hidden = [];
     };
@@ -223,9 +211,9 @@ const large = await Promise.all(
       running = [
         fade(scrim, 0, 1, ms),
         ...chrome.map((el) => fade(el, 0, 1, ms)),
-        fly(photo.currentSrc || photo.src, photo.getBoundingClientRect(), from, true, ms),
+        fly(photo, from, true, ms),
       ];
-      hide(photo, thumb);
+      hide(thumb);
       opened = Promise.all(running.map((a) => a.finished)).then(
         () => {
           settle();
@@ -251,8 +239,8 @@ const large = await Promise.all(
       const ms = 280;
       running = [fade(scrim, 1, 0, ms), ...chrome.map((el) => fade(el, 1, 0, ms * 0.6))];
       if (to) {
-        running.push(fly(photo.currentSrc || photo.src, photo.getBoundingClientRect(), to, false, ms));
-        hide(photo, thumb);
+        running.push(fly(photo, to, false, ms));
+        hide(thumb);
       } else {
         running.push(fade(track, 1, 0, ms * 0.6));
       }
