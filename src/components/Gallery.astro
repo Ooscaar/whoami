@@ -4,7 +4,7 @@ import { photos } from "../data/gallery";
 
 // Optimized large versions for the viewer (instead of the original files).
 const large = await Promise.all(
-  photos.map((photo) => getImage({ src: photo.src, width: 1600, format: "webp" })),
+  photos.map((photo) => getImage({ src: photo.src, width: 1600, format: "webp", quality: 75 })),
 );
 ---
 
@@ -21,7 +21,8 @@ const large = await Promise.all(
       >
         <Image
           src={photo.src}
-          alt={photo.title}
+          alt={photo.description}
+          quality={75}
           widths={[400, 800]}
           sizes="(min-width: 768px) 330px, 50vw"
           loading={i < 4 ? "eager" : "lazy"}
@@ -99,7 +100,7 @@ const large = await Promise.all(
       const img = imgOf(slide);
       const item = at(i);
       if (img.getAttribute("src") !== item.full) img.src = item.full;
-      img.alt = item.title;
+      img.alt = item.description;
     };
 
     const render = () => {
