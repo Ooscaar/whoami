@@ -11,205 +11,369 @@ const large = await Promise.all(
 <div class="gallery">
   {
     photos.map((photo, i) => (
-      <figure>
-        <button
-          type="button"
-          class="thumb"
-          data-index={i}
-          data-full={large[i].src}
-          data-title={photo.title}
-          data-description={photo.description}
-          aria-label={`Open ${photo.title}`}
-        >
-          <Image
-            src={photo.src}
-            alt={photo.title}
-            widths={[400, 800]}
-            sizes="(max-width: 520px) 100vw, (max-width: 760px) 50vw, 330px"
-            loading={i < 3 ? "eager" : "lazy"}
-          />
-        </button>
-        <figcaption>{photo.title}</figcaption>
-      </figure>
+      <button
+        type="button"
+        class="thumb"
+        data-full={large[i].src}
+        data-title={photo.title}
+        data-description={photo.description}
+        aria-label={`Open ${photo.title}`}
+      >
+        <Image
+          src={photo.src}
+          alt={photo.title}
+          widths={[400, 800]}
+          sizes="(min-width: 768px) 330px, 50vw"
+          loading={i < 4 ? "eager" : "lazy"}
+        />
+      </button>
     ))
   }
 </div>
 
-<dialog class="lightbox" aria-label="Photo viewer" closedby="any" tabindex="-1">
-  <div class="bar">
+<dialog class="viewer" aria-label="Photo viewer" tabindex="-1">
+  <div class="top">
     <span class="counter"></span>
-    <button type="button" class="close" aria-label="Close">close</button>
+    <button type="button" class="icon close" aria-label="Close">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3.5 3.5l9 9m0-9l-9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+        ></path>
+      </svg>
+    </button>
   </div>
-  <div class="stage">
-    <button type="button" class="step prev" aria-label="Previous photo">←</button>
-    <img alt="" />
-    <button type="button" class="step next" aria-label="Next photo">→</button>
+
+  <div class="track">
+    <div class="slide"><img alt="" draggable="false" /></div>
+    <div class="slide"><img alt="" draggable="false" /></div>
+    <div class="slide"><img alt="" draggable="false" /></div>
   </div>
-  <div class="details">
+
+  <button type="button" class="icon step prev" aria-label="Previous photo">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M10 3.5L5.5 8l4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+      ></path>
+    </svg>
+  </button>
+  <button type="button" class="icon step next" aria-label="Next photo">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+      ></path>
+    </svg>
+  </button>
+
+  <div class="caption">
     <p class="title"></p>
     <p class="description"></p>
   </div>
 </dialog>
 
 <script>
+  const NAME = "gallery-photo";
+  const GAP = 20;
+  const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+
+  const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const canMorph = () => !reducedMotion() && "startViewTransition" in document;
+
+  const preload = (src: string) =>
+    new Promise<void>((resolve) => {
+      const img = new Image();
+      img.onload = img.onerror = () => resolve();
+      img.src = src;
+      if (img.complete) resolve();
+      setTimeout(resolve, 1500); // never block opening for long
+    });
+
   // Runs on every client-side navigation (ClientRouter), not just the first load.
   document.addEventListener("astro:page-load", () => {
-    const dialog = document.querySelector<HTMLDialogElement>(".lightbox");
-    if (!dialog) return;
+    const gallery = document.querySelector<HTMLElement>(".gallery");
+    const dialog = document.querySelector<HTMLDialogElement>(".viewer");
+    if (!gallery || !dialog) return;
 
-    const thumbs = [...document.querySelectorAll<HTMLButtonElement>(".gallery .thumb")];
-    const img = dialog.querySelector("img")!;
+    const items = [...gallery.querySelectorAll<HTMLButtonElement>(".thumb")].map((button) => ({
+      button,
+      thumb: button.querySelector("img")!,
+      full: button.dataset.full ?? "",
+      title: button.dataset.title ?? "",
+      description: button.dataset.description ?? "",
+    }));
+    const n = items.length;
+
+    // Fade thumbnails in as they load.
+    gallery.classList.add("js");
+    items.forEach(({ thumb }) => {
+      if (thumb.complete) thumb.classList.add("loaded");
+      else thumb.addEventListener("load", () => thumb.classList.add("loaded"), { once: true });
+    });
+
+    const track = dialog.querySelector<HTMLElement>(".track")!;
+    let slides = [...track.querySelectorAll<HTMLElement>(".slide")]; // [prev, current, next]
     const counter = dialog.querySelector(".counter")!;
     const title = dialog.querySelector(".title")!;
     const description = dialog.querySelector(".description")!;
     let index = 0;
+    let width = 0;
+    let animating = false;
 
-    const show = (i: number) => {
-      index = (i + thumbs.length) % thumbs.length;
-      const thumb = thumbs[index];
-      const { full = "", title: t = "", description: d = "" } = thumb.dataset;
+    const at = (i: number) => items[(i + n) % n];
+    const imgOf = (slide: HTMLElement) => slide.querySelector("img")!;
 
-      // Show the already-loaded thumbnail instantly, then swap in the large version.
-      img.src = thumb.querySelector("img")?.currentSrc ?? full;
-      img.alt = t;
-      const hiRes = new Image();
-      hiRes.onload = () => {
-        if (index === thumbs.indexOf(thumb)) img.src = full;
-      };
-      hiRes.src = full;
-
-      counter.textContent = `${index + 1} / ${thumbs.length}`;
-      title.textContent = t;
-      description.textContent = d;
+    const fill = (slide: HTMLElement, i: number) => {
+      const img = imgOf(slide);
+      const item = at(i);
+      if (img.getAttribute("src") !== item.full) img.src = item.full;
+      img.alt = item.title;
     };
 
-    thumbs.forEach((thumb, i) =>
-      thumb.addEventListener("click", () => {
-        show(i);
-        dialog.showModal();
-        // Focus the dialog itself so no button shows a focus ring on open.
-        dialog.focus();
-      }),
-    );
+    const updateText = () => {
+      const item = at(index);
+      counter.textContent = `${index + 1} / ${n}`;
+      title.textContent = item.title;
+      description.textContent = item.description;
+    };
 
-    dialog.querySelector(".close")!.addEventListener("click", () => dialog.close());
-    dialog.querySelector(".prev")!.addEventListener("click", () => show(index - 1));
-    dialog.querySelector(".next")!.addEventListener("click", () => show(index + 1));
+    const render = () => {
+      slides.forEach((slide, k) => {
+        fill(slide, index + k - 1);
+        slide.setAttribute("aria-hidden", k === 1 ? "false" : "true");
+      });
+      updateText();
+    };
+
+    const measure = () => (width = track.clientWidth + GAP);
+
+    // Position the three slides side by side, shifted by `x` pixels.
+    const setOffset = (x: number, ms = 0) => {
+      slides.forEach((slide, k) => {
+        slide.style.transition = ms ? `transform ${ms}ms ${EASE}` : "none";
+        slide.style.transform = `translate3d(${(k - 1) * width + x}px, 0, 0)`;
+      });
+    };
+
+    const commit = (dir: 1 | -1) => {
+      index = (index + dir + n) % n;
+      // Rotate the slide elements so nothing visibly jumps, then refill the new edge slide.
+      slides = dir === 1 ? [slides[1], slides[2], slides[0]] : [slides[2], slides[0], slides[1]];
+      setOffset(0);
+      render();
+    };
+
+    const go = (dir: 1 | -1, ms = 320) => {
+      if (animating || n < 2) return;
+      if (reducedMotion()) return commit(dir);
+      animating = true;
+      setOffset(-dir * width, ms);
+      setTimeout(() => {
+        commit(dir);
+        animating = false;
+      }, ms + 20);
+    };
+
+    // Scroll the grid so the thumbnail we morph back into is on screen.
+    const reveal = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      if (r.top >= 0 && r.bottom <= innerHeight) return;
+      scrollTo({ top: Math.max(0, r.top + scrollY - (innerHeight - r.height) / 2), behavior: "instant" });
+    };
+
+    const open = async (i: number) => {
+      index = i;
+      render();
+      await preload(at(i).full);
+      const thumb = at(i).thumb;
+      const show = () => {
+        dialog.showModal();
+        dialog.focus();
+        measure();
+        setOffset(0);
+      };
+      if (!canMorph()) return show();
+
+      // The thumbnail grows into the full-screen photo.
+      const current = imgOf(slides[1]);
+      thumb.style.viewTransitionName = NAME;
+      const vt = document.startViewTransition(() => {
+        thumb.style.viewTransitionName = "";
+        current.style.viewTransitionName = NAME;
+        show();
+      });
+      vt.finished.finally(() => (current.style.viewTransitionName = ""));
+    };
+
+    const close = () => {
+      if (!dialog.open) return;
+      const thumb = at(index).thumb;
+      reveal(thumb);
+      if (!canMorph()) return dialog.close();
+
+      // The photo shrinks back into its spot in the grid.
+      const current = imgOf(slides[1]);
+      current.style.viewTransitionName = NAME;
+      const vt = document.startViewTransition(() => {
+        current.style.viewTransitionName = "";
+        dialog.close();
+        thumb.style.viewTransitionName = NAME;
+      });
+      vt.finished.finally(() => (thumb.style.viewTransitionName = ""));
+    };
+
+    items.forEach(({ button, full }, i) => {
+      button.addEventListener("pointerenter", () => preload(full), { once: true });
+      button.addEventListener("click", () => open(i));
+    });
+
+    dialog.querySelector(".close")!.addEventListener("click", close);
+    dialog.querySelector(".prev")!.addEventListener("click", () => go(-1));
+    dialog.querySelector(".next")!.addEventListener("click", () => go(1));
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault(); // Esc: close with the animation instead of instantly
+      close();
+    });
     dialog.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft") show(index - 1);
-      if (e.key === "ArrowRight") show(index + 1);
+      if (e.key === "ArrowLeft") go(-1);
+      if (e.key === "ArrowRight") go(1);
     });
-    // Clicking empty space (not the photo or controls) closes it.
-    dialog.addEventListener("click", (e) => {
-      const target = e.target as HTMLElement;
-      if (target === dialog || target.classList.contains("stage")) dialog.close();
+    new ResizeObserver(() => {
+      if (dialog.open && !animating) {
+        measure();
+        setOffset(0);
+      }
+    }).observe(track);
+
+    // Swipe: the strip follows your finger; a flick or a half-way drag moves to the next photo.
+    let drag: { id: number; x: number; samples: { x: number; t: number }[] } | null = null;
+    let moved = 0;
+
+    track.addEventListener("pointerdown", (e) => {
+      if (!e.isPrimary || e.button !== 0 || animating) return;
+      try {
+        track.setPointerCapture(e.pointerId);
+      } catch {}
+      measure();
+      drag = { id: e.pointerId, x: e.clientX, samples: [{ x: e.clientX, t: performance.now() }] };
+      moved = 0;
     });
+
+    track.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.x;
+      moved = Math.max(moved, Math.abs(dx));
+      const t = performance.now();
+      drag.samples.push({ x: e.clientX, t });
+      while (drag.samples.length > 2 && drag.samples[0].t < t - 80) drag.samples.shift();
+      setOffset(dx);
+    });
+
+    const release = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.x;
+      const first = drag.samples[0];
+      const last = drag.samples[drag.samples.length - 1];
+      const velocity = (last.x - first.x) / Math.max(last.t - first.t, 16); // px per ms
+      drag = null;
+
+      if (moved < 6) {
+        // A tap on empty space (not the photo) closes, like clicking outside.
+        setOffset(0);
+        if (!(document.elementFromPoint(e.clientX, e.clientY) instanceof HTMLImageElement)) close();
+        return;
+      }
+      const projected = dx + velocity * 280;
+      if (projected <= -width / 2) go(1, 260);
+      else if (projected >= width / 2) go(-1, 260);
+      else setOffset(0, 240);
+    };
+    track.addEventListener("pointerup", release);
+    track.addEventListener("pointercancel", release);
   });
 </script>
 
 <style>
-  /* Masonry: columns keep each photo's natural aspect ratio. */
+  /* Masonry: 2 columns on mobile, 3 on desktop; photos keep their aspect ratio. */
   .gallery {
-    columns: 3 220px;
+    columns: 2;
     column-gap: 1rem;
   }
 
-  figure {
-    break-inside: avoid;
-    margin-bottom: 1.5rem;
+  @media (min-width: 768px) {
+    .gallery {
+      columns: 3;
+      column-gap: 2.5rem;
+    }
   }
 
   .thumb {
     display: block;
     width: 100%;
+    margin-bottom: 1rem;
     padding: 0;
     border: 0;
     background: none;
     cursor: zoom-in;
-    overflow: hidden;
+    break-inside: avoid;
+    touch-action: manipulation;
+  }
+
+  @media (min-width: 768px) {
+    .thumb {
+      margin-bottom: 2.5rem;
+    }
   }
 
   .thumb img {
     width: 100%;
-    transition: transform 500ms ease-out;
   }
 
-  .thumb:hover img,
-  .thumb:focus-visible img {
-    transform: scale(1.02);
+  .gallery.js .thumb img {
+    opacity: 0;
+    transition: opacity 600ms ease-in-out;
   }
 
-  figcaption {
-    margin-top: 0.75rem;
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--muted);
+  .gallery.js .thumb img.loaded {
+    opacity: 1;
   }
 
-  /* Native <dialog> viewer: fades in, photo rises slightly. */
-  .lightbox {
+  .thumb:focus-visible {
+    outline: 1px solid var(--muted);
+    outline-offset: 4px;
+  }
+
+  /* Full-screen native <dialog> viewer. */
+  .viewer {
     width: 100vw;
     height: 100dvh;
     max-width: none;
     max-height: none;
     margin: 0;
-    padding: 1.5rem;
+    padding: 0;
     border: 0;
     background: var(--background-color);
     color: var(--foreground-color);
+    overflow: hidden;
     flex-direction: column;
-    gap: 1.25rem;
-    opacity: 0;
-    transition:
-      opacity 200ms ease-out,
-      display 200ms allow-discrete,
-      overlay 200ms allow-discrete;
   }
 
-  .lightbox[open] {
+  .viewer[open] {
     display: flex;
-    opacity: 1;
   }
 
-  @starting-style {
-    .lightbox[open] {
-      opacity: 0;
-    }
-  }
-
-  .lightbox:focus {
+  .viewer:focus {
     outline: none;
   }
 
-  .close:focus-visible,
-  .step:focus-visible {
-    outline: 1px solid var(--muted);
-    outline-offset: 4px;
-  }
-
-  .lightbox::backdrop {
+  .viewer::backdrop {
     background: transparent;
   }
 
-  .lightbox img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
-    min-height: 0;
-    object-fit: contain;
-    transition: transform 300ms ease-out;
+  :global(html:has(.viewer[open])) {
+    overflow: hidden;
   }
 
-  @starting-style {
-    .lightbox[open] img {
-      transform: translateY(8px) scale(0.98);
-    }
-  }
-
-  .bar {
+  .top {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 1.5rem 0;
     font-size: 13px;
   }
 
@@ -217,61 +381,115 @@ const large = await Promise.all(
     color: var(--muted);
   }
 
-  .stage {
+  .track {
+    position: relative;
     flex: 1;
     min-height: 0;
-    display: grid;
-    grid-template-columns: 3rem minmax(0, 1fr) 3rem;
-    grid-template-rows: minmax(0, 1fr);
-    align-items: center;
-    justify-items: center;
+    margin: 1rem 0;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
-  .details {
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 1.5rem;
+    will-change: transform;
+  }
+
+  @media (min-width: 768px) {
+    .slide {
+      padding: 0 5.5rem;
+    }
+  }
+
+  .slide img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    -webkit-user-drag: none;
+  }
+
+  .caption {
     max-width: 40rem;
     margin: 0 auto;
+    padding: 0 1.5rem calc(1.5rem + env(safe-area-inset-bottom));
     text-align: center;
   }
 
-  .details .title {
+  .caption .title {
     font-size: 13px;
   }
 
-  .details .description {
+  .caption .description {
     font-size: 12px;
     line-height: 1.5;
     color: var(--muted);
   }
 
-  .close,
-  .step {
+  /* Round, softly tinted icon buttons. */
+  .icon {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
     padding: 0;
     border: 0;
-    background: none;
-    font: inherit;
-    color: inherit;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--foreground-color) 6%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--foreground-color);
     cursor: pointer;
-    opacity: 0.5;
-    transition: opacity 150ms;
+    transition: background-color 200ms ease-in-out;
+  }
+
+  .icon:hover {
+    background: color-mix(in srgb, var(--foreground-color) 12%, transparent);
+  }
+
+  .icon:focus-visible {
+    outline: 1px solid var(--muted);
+    outline-offset: 3px;
   }
 
   .step {
-    font-size: 15px;
-    width: 3rem;
-    height: 3rem;
+    position: absolute;
+    top: 50%;
+    translate: 0 -50%;
+    z-index: 1;
   }
 
-  .close:hover,
-  .close:focus-visible,
-  .step:hover,
-  .step:focus-visible {
-    opacity: 1;
+  .prev {
+    left: 1.5rem;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .lightbox,
-    .lightbox img {
-      transition: none;
+  .next {
+    right: 1.5rem;
+  }
+
+  /* On phones you swipe instead. */
+  @media (max-width: 767px) {
+    .step {
+      display: none;
     }
+  }
+
+  /* The thumbnail <-> full-screen morph. */
+  :global(::view-transition-group(gallery-photo)) {
+    animation-duration: 380ms;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  :global(::view-transition-old(gallery-photo)),
+  :global(::view-transition-new(gallery-photo)) {
+    animation-duration: 380ms;
   }
 </style>
