@@ -1,5 +1,6 @@
 ---
 import { Font } from "astro:assets";
+import { ClientRouter } from "astro:transitions";
 
 interface Props {
   title: string;
@@ -14,6 +15,13 @@ const nav = [
 ];
 
 const current = Astro.url.pathname.replace(/\/$/, "") || "/";
+
+// Like deadsimplesites.com's "Last updated" line — stamped at build time.
+const updated = new Date().toLocaleDateString("en-US", {
+  month: "2-digit",
+  day: "2-digit",
+  year: "2-digit",
+});
 ---
 
 <html lang="en">
@@ -23,10 +31,12 @@ const current = Astro.url.pathname.replace(/\/$/, "") || "/";
     <meta name="description" content={description} />
     <title>{title}</title>
     <Font cssVariable="--font-geist-mono" preload />
+    <!-- Client-side navigation: pages swap in place instead of a full reload. -->
+    <ClientRouter />
   </head>
   <body>
     <div class="page">
-      <nav aria-label="Main">
+      <nav aria-label="Main" transition:name="nav" transition:animate="none">
         <a href="/" class="name" aria-current={current === "/" ? "page" : undefined}>Òscar Pérez</a>
         <div class="links">
           {
@@ -38,9 +48,13 @@ const current = Astro.url.pathname.replace(/\/$/, "") || "/";
           }
         </div>
       </nav>
-      <main>
+      <main transition:animate="fade">
         <slot />
       </main>
+      <footer class="muted" transition:name="footer" transition:animate="none">
+        <span>© {new Date().getFullYear()} Òscar Pérez</span>
+        <span>last updated {updated}</span>
+      </footer>
     </div>
   </body>
 </html>
@@ -104,18 +118,23 @@ const current = Astro.url.pathname.replace(/\/$/, "") || "/";
     text-decoration-color: var(--foreground-color);
   }
 
-  /* One narrow, left-aligned column — the dead simple layout. */
+  /* One narrow, left-aligned column — the dead simple layout.
+     Full-height flex column so the footer always sits at the bottom. */
   .page {
     max-width: 40rem;
+    min-height: 100dvh;
     margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
   }
 
   main {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 4rem;
-    padding-top: 10vh;
+    padding: 10vh 0 6rem;
   }
 
   .muted {
@@ -130,6 +149,13 @@ const current = Astro.url.pathname.replace(/\/$/, "") || "/";
     align-items: baseline;
     gap: 2rem;
     font-size: 13px;
+  }
+
+  footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 12px;
   }
 
   .links {

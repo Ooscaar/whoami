@@ -9,10 +9,6 @@ const links = [
 ---
 
 <Layout title="Òscar Pérez">
-  <header>
-    <p class="muted">hello world<span class="cursor" aria-hidden="true"></span></p>
-  </header>
-
   <section class="about">
     <h1>Hi, I'm Òscar.</h1>
     <!-- Placeholder copy: replace the [bracketed] parts. -->
@@ -38,39 +34,9 @@ const links = [
       }
     </p>
   </section>
-
-  <footer class="muted">© {new Date().getFullYear()} Òscar Pérez</footer>
 </Layout>
 
 <style>
-  header {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .cursor {
-    display: inline-block;
-    width: 0.55em;
-    height: 1em;
-    margin-left: 0.25rem;
-    translate: 0 0.15em;
-    background: currentColor;
-    animation: blink 1.1s steps(1) infinite;
-  }
-
-  @keyframes blink {
-    50% {
-      opacity: 0;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .cursor {
-      animation: none;
-    }
-  }
-
   .about {
     display: flex;
     flex-direction: column;
@@ -79,9 +45,5 @@ const links = [
 
   .sep {
     opacity: 0.4;
-  }
-
-  footer {
-    font-size: 12px;
   }
 </style>

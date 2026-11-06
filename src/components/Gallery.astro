@@ -1,6 +1,11 @@
 ---
-import { Image } from "astro:assets";
+import { Image, getImage } from "astro:assets";
 import { photos } from "../data/gallery";
+
+// Optimized large versions for the viewer (instead of the original files).
+const large = await Promise.all(
+  photos.map((photo) => getImage({ src: photo.src, width: 1600, format: "webp" })),
+);
 ---
 
 <div class="gallery">
@@ -11,7 +16,7 @@ import { photos } from "../data/gallery";
           type="button"
           class="thumb"
           data-index={i}
-          data-full={photo.src.src}
+          data-full={large[i].src}
           data-title={photo.title}
           data-description={photo.description}
           aria-label={`Open ${photo.title}`}
@@ -30,9 +35,16 @@ import { photos } from "../data/gallery";
   }
 </div>
 
-<dialog class="lightbox" aria-label="Photo">
-  <button type="button" class="close" aria-label="Close">close</button>
-  <img alt="" />
+<dialog class="lightbox" aria-label="Photo viewer" closedby="any" tabindex="-1">
+  <div class="bar">
+    <span class="counter"></span>
+    <button type="button" class="close" aria-label="Close">close</button>
+  </div>
+  <div class="stage">
+    <button type="button" class="step prev" aria-label="Previous photo">←</button>
+    <img alt="" />
+    <button type="button" class="step next" aria-label="Next photo">→</button>
+  </div>
   <div class="details">
     <p class="title"></p>
     <p class="description"></p>
@@ -40,26 +52,58 @@ import { photos } from "../data/gallery";
 </dialog>
 
 <script>
-  const dialog = document.querySelector<HTMLDialogElement>(".lightbox")!;
-  const img = dialog.querySelector("img")!;
-  const title = dialog.querySelector(".title")!;
-  const description = dialog.querySelector(".description")!;
+  // Runs on every client-side navigation (ClientRouter), not just the first load.
+  document.addEventListener("astro:page-load", () => {
+    const dialog = document.querySelector<HTMLDialogElement>(".lightbox");
+    if (!dialog) return;
 
-  document.querySelectorAll<HTMLButtonElement>(".gallery .thumb").forEach((thumb) => {
-    thumb.addEventListener("click", () => {
+    const thumbs = [...document.querySelectorAll<HTMLButtonElement>(".gallery .thumb")];
+    const img = dialog.querySelector("img")!;
+    const counter = dialog.querySelector(".counter")!;
+    const title = dialog.querySelector(".title")!;
+    const description = dialog.querySelector(".description")!;
+    let index = 0;
+
+    const show = (i: number) => {
+      index = (i + thumbs.length) % thumbs.length;
+      const thumb = thumbs[index];
       const { full = "", title: t = "", description: d = "" } = thumb.dataset;
-      img.src = full;
+
+      // Show the already-loaded thumbnail instantly, then swap in the large version.
+      img.src = thumb.querySelector("img")?.currentSrc ?? full;
       img.alt = t;
+      const hiRes = new Image();
+      hiRes.onload = () => {
+        if (index === thumbs.indexOf(thumb)) img.src = full;
+      };
+      hiRes.src = full;
+
+      counter.textContent = `${index + 1} / ${thumbs.length}`;
       title.textContent = t;
       description.textContent = d;
-      dialog.showModal();
-    });
-  });
+    };
 
-  dialog.querySelector(".close")!.addEventListener("click", () => dialog.close());
-  // Clicking the backdrop (outside the content) closes it.
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
+    thumbs.forEach((thumb, i) =>
+      thumb.addEventListener("click", () => {
+        show(i);
+        dialog.showModal();
+        // Focus the dialog itself so no button shows a focus ring on open.
+        dialog.focus();
+      }),
+    );
+
+    dialog.querySelector(".close")!.addEventListener("click", () => dialog.close());
+    dialog.querySelector(".prev")!.addEventListener("click", () => show(index - 1));
+    dialog.querySelector(".next")!.addEventListener("click", () => show(index + 1));
+    dialog.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") show(index - 1);
+      if (e.key === "ArrowRight") show(index + 1);
+    });
+    // Clicking empty space (not the photo or controls) closes it.
+    dialog.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (target === dialog || target.classList.contains("stage")) dialog.close();
+    });
   });
 </script>
 
@@ -102,24 +146,45 @@ import { photos } from "../data/gallery";
     color: var(--muted);
   }
 
+  /* Native <dialog> viewer: fades in, photo rises slightly. */
   .lightbox {
     width: 100vw;
     height: 100dvh;
     max-width: none;
     max-height: none;
     margin: 0;
-    padding: 3rem 1.5rem 2rem;
+    padding: 1.5rem;
     border: 0;
     background: var(--background-color);
     color: var(--foreground-color);
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
     gap: 1.25rem;
+    opacity: 0;
+    transition:
+      opacity 200ms ease-out,
+      display 200ms allow-discrete,
+      overlay 200ms allow-discrete;
   }
 
   .lightbox[open] {
     display: flex;
+    opacity: 1;
+  }
+
+  @starting-style {
+    .lightbox[open] {
+      opacity: 0;
+    }
+  }
+
+  .lightbox:focus {
+    outline: none;
+  }
+
+  .close:focus-visible,
+  .step:focus-visible {
+    outline: 1px solid var(--muted);
+    outline-offset: 4px;
   }
 
   .lightbox::backdrop {
@@ -127,14 +192,44 @@ import { photos } from "../data/gallery";
   }
 
   .lightbox img {
-    max-width: min(100%, 1200px);
-    max-height: calc(100dvh - 12rem);
+    max-width: 100%;
+    max-height: 100%;
     width: auto;
+    height: auto;
+    min-height: 0;
     object-fit: contain;
+    transition: transform 300ms ease-out;
+  }
+
+  @starting-style {
+    .lightbox[open] img {
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+
+  .bar {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+  }
+
+  .counter {
+    color: var(--muted);
+  }
+
+  .stage {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr) 3rem;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: center;
+    justify-items: center;
   }
 
   .details {
-    width: min(100%, 1200px);
+    max-width: 40rem;
+    margin: 0 auto;
     text-align: center;
   }
 
@@ -144,26 +239,39 @@ import { photos } from "../data/gallery";
 
   .details .description {
     font-size: 12px;
+    line-height: 1.5;
     color: var(--muted);
   }
 
-  .close {
-    position: absolute;
-    top: 1.5rem;
-    right: 1.5rem;
+  .close,
+  .step {
     padding: 0;
     border: 0;
     background: none;
     font: inherit;
-    font-size: 13px;
     color: inherit;
     cursor: pointer;
     opacity: 0.5;
     transition: opacity 150ms;
   }
 
+  .step {
+    font-size: 15px;
+    width: 3rem;
+    height: 3rem;
+  }
+
   .close:hover,
-  .close:focus-visible {
+  .close:focus-visible,
+  .step:hover,
+  .step:focus-visible {
     opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lightbox,
+    .lightbox img {
+      transition: none;
+    }
   }
 </style>
