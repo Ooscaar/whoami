@@ -1,27 +1,92 @@
 ---
-import { Font } from "astro:assets";
+import Layout from "../layouts/Layout.astro";
+import Gallery from "../components/Gallery.astro";
 
-const title = "Hello World";
+const links = [
+  { label: "github", href: "https://github.com/Ooscaar" },
+  { label: "linkedin", href: "https://www.linkedin.com/in/oscarperezcastillo/" },
+  { label: "x", href: "https://x.com/ooscaar999" },
+];
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title>
-    <Font cssVariable="--font-geist-mono" preload />
-  </head>
-  <body>
-    <h1>{title}</h1>
-  </body>
-</html>
+<Layout title="Oscar Perez">
+  <main>
+    <header class="intro">
+      <blockquote>hello world</blockquote>
+      <div class="prose">
+        <h1>Hi, I'm Oscar.</h1>
+        <p class="links">
+          {
+            links.map((link, i) => (
+              <span>
+                {i > 0 && <span class="sep"> / </span>}
+                <a href={link.href} target="_blank" rel="noopener noreferrer">
+                  {link.label}
+                </a>
+              </span>
+            ))
+          }
+        </p>
+      </div>
+    </header>
+
+    <section class="photos" aria-labelledby="photos-heading">
+      <h2 id="photos-heading">photos</h2>
+      <Gallery />
+    </section>
+  </main>
+</Layout>
 
 <style>
-  body {
+  main {
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  @media (min-width: 1024px) {
+    main {
+      padding: 0 20vw;
+    }
+  }
+
+  .intro {
+    min-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 2.5rem;
+    padding: 8rem 0 4rem;
+  }
+
+  blockquote {
     margin: 0;
-    min-height: 100vh;
-    display: grid;
-    place-items: center;
-    font-family: var(--font-geist-mono);
+    font-size: 14px;
+    line-height: 1.625;
+    letter-spacing: 0.02em;
+    text-transform: lowercase;
+  }
+
+  .prose {
+    max-width: 54rem;
+  }
+
+  .links {
+    margin-top: 1.5vh;
+  }
+
+  .sep {
+    opacity: 0.4;
+  }
+
+  .photos {
+    padding: 4rem 0 6rem;
+  }
+
+  h2 {
+    margin-bottom: 2rem;
+    font-size: 13px;
+    text-transform: lowercase;
+    color: var(--muted);
   }
 </style>

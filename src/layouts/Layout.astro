@@ -1,0 +1,83 @@
+---
+import { Font } from "astro:assets";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Oscar Perez" } = Astro.props;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <Font cssVariable="--font-geist-mono" preload />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    /* Warm off-white, not pure white. */
+    --background-color: #f5f4f1;
+    --foreground-color: #262523;
+    --muted: color-mix(in srgb, var(--foreground-color) 50%, transparent);
+    color-scheme: light;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    background: var(--background-color);
+    color: var(--foreground-color);
+    font-family: var(--font-geist-mono);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    font-size: 15px;
+    line-height: max(22px, 3vh);
+  }
+
+  h1,
+  h2,
+  p,
+  figure {
+    margin: 0;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* The thin, faded underline. */
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 5px;
+    text-decoration-color: color-mix(in srgb, var(--foreground-color) 35%, transparent);
+    transition: text-decoration-color 150ms;
+    outline: none;
+  }
+
+  a:hover,
+  a:focus-visible {
+    text-decoration-color: var(--foreground-color);
+  }
+</style>
