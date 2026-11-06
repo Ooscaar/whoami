@@ -8,10 +8,6 @@ import { artists } from "../data/music";
   <header>
     <h1>music</h1>
     <p class="muted">artists I love, and my favorite song by each. press play to listen.</p>
-    <label class="volume muted">
-      <span>volume</span>
-      <input type="range" min="0" max="1" step="0.01" value="0.35" />
-    </label>
   </header>
 
   <ul>
@@ -74,10 +70,8 @@ import { artists } from "../data/music";
   const audio = new Audio();
   audio.preload = "none";
 
-  // Start low-medium; the slider goes up to full volume. Remember the choice between visits.
-  const DEFAULT_VOLUME = 0.35;
-  const saved = parseFloat(localStorage.getItem("music-volume") ?? "");
-  audio.volume = saved >= 0 && saved <= 1 ? saved : DEFAULT_VOLUME;
+  // Play at a low-medium volume.
+  audio.volume = 0.35;
   let current: HTMLLIElement | null = null;
 
   const stop = () => {
@@ -123,15 +117,6 @@ import { artists } from "../data/music";
   audio.addEventListener("ended", stop);
 
   document.addEventListener("astro:page-load", () => {
-    const slider = document.querySelector<HTMLInputElement>(".volume input");
-    if (slider) {
-      slider.value = String(audio.volume);
-      slider.addEventListener("input", () => {
-        audio.volume = Number(slider.value);
-        localStorage.setItem("music-volume", slider.value);
-      });
-    }
-
     document.querySelectorAll<HTMLButtonElement>("li[data-preview] :is(.play, .toggle)").forEach((button) => {
       button.addEventListener("click", () => {
         const item = button.closest("li")!;
@@ -163,57 +148,6 @@ import { artists } from "../data/music";
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-  }
-
-  .volume {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-top: 0.5rem;
-    font-size: 12px;
-  }
-
-  /* A hairline track with a small round thumb, in the page's colors. */
-  .volume input {
-    width: 8rem;
-    height: 16px;
-    margin: 0;
-    background: none;
-    cursor: pointer;
-    appearance: none;
-    accent-color: var(--foreground-color);
-  }
-
-  .volume input::-webkit-slider-runnable-track {
-    height: 1px;
-    background: color-mix(in srgb, var(--foreground-color) 30%, transparent);
-  }
-
-  .volume input::-moz-range-track {
-    height: 1px;
-    background: color-mix(in srgb, var(--foreground-color) 30%, transparent);
-  }
-
-  .volume input::-webkit-slider-thumb {
-    appearance: none;
-    width: 10px;
-    height: 10px;
-    margin-top: -4.5px;
-    border-radius: 50%;
-    background: var(--foreground-color);
-  }
-
-  .volume input::-moz-range-thumb {
-    width: 10px;
-    height: 10px;
-    border: 0;
-    border-radius: 50%;
-    background: var(--foreground-color);
-  }
-
-  .volume input:focus-visible {
-    outline: 1px solid var(--foreground-color);
-    outline-offset: 4px;
   }
 
   ul {
