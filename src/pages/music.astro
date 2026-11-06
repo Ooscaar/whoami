@@ -7,31 +7,37 @@ import { artists } from "../data/music";
 <Layout title="Music — Òscar Pérez" description="Music Òscar Pérez loves">
   <header>
     <h1>music</h1>
-    <p class="muted">artists I love.</p>
+    <p class="muted">artists I love. tap a photo to hear my favorite song.</p>
   </header>
 
   <ul>
     {
       artists.map((artist) => (
-        <li>
-          <Image
-            src={artist.image}
-            alt={artist.name}
-            width={48}
-            height={48}
-            densities={[1, 2, 3]}
-          />
+        <li data-preview={artist.song.preview}>
+          <button type="button" class="play" aria-pressed="false" aria-label={`Play ${artist.song.title} by ${artist.name}`}>
+            <Image src={artist.image} alt="" width={48} height={48} densities={[1, 2, 3]} />
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path class="icon-play" d="M5 3.5v9l7.5-4.5z" />
+              <path class="icon-pause" d="M4.5 3.5h2.5v9H4.5zM9 3.5h2.5v9H9z" />
+            </svg>
+          </button>
           <div class="text">
-            <span>{artist.name}</span>
+            <div class="who">
+              <span>{artist.name}</span>
+              <a class="song muted" href={artist.song.href} target="_blank" rel="noopener noreferrer">
+                {artist.song.title}
+              </a>
+            </div>
             <span class="muted">{artist.note}</span>
           </div>
+          <span class="progress" aria-hidden="true" />
         </li>
       ))
     }
   </ul>
 
   <p class="credits muted">
-    photos from wikimedia commons:{" "}
+    30-second previews from apple music. photos from wikimedia commons:{" "}
     {
       artists.map((artist, i) => (
         <span>
@@ -45,6 +51,46 @@ import { artists } from "../data/music";
     }
   </p>
 </Layout>
+
+<script>
+  // One shared player: playing a song stops whichever one was playing before.
+  const audio = new Audio();
+  audio.preload = "none";
+  let current: HTMLLIElement | null = null;
+
+  const stop = () => {
+    audio.pause();
+    current?.classList.remove("playing");
+    current?.querySelector(".play")?.setAttribute("aria-pressed", "false");
+    current?.style.setProperty("--progress", "0");
+    current = null;
+  };
+
+  audio.addEventListener("timeupdate", () => {
+    if (current && audio.duration) {
+      current.style.setProperty("--progress", String(audio.currentTime / audio.duration));
+    }
+  });
+  audio.addEventListener("ended", stop);
+
+  document.addEventListener("astro:page-load", () => {
+    document.querySelectorAll<HTMLButtonElement>("li[data-preview] .play").forEach((button) => {
+      button.addEventListener("click", () => {
+        const item = button.closest("li")!;
+        if (item === current) return stop();
+        stop();
+        current = item;
+        item.classList.add("playing");
+        button.setAttribute("aria-pressed", "true");
+        audio.src = item.dataset.preview!;
+        audio.play().catch(stop);
+      });
+    });
+  });
+
+  // Leaving the page (client-side navigation) stops the music.
+  document.addEventListener("astro:before-swap", stop);
+</script>
 
 <style>
   header {
@@ -60,6 +106,7 @@ import { artists } from "../data/music";
   }
 
   li {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -71,12 +118,29 @@ import { artists } from "../data/music";
     border-bottom: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
   }
 
-  /* Same treatment as the home portrait: black and white until hovered or tapped. */
-  li img {
+  .play {
+    position: relative;
     flex: none;
     width: 48px;
     height: 48px;
+    padding: 0;
+    border: 0;
     border-radius: 2px;
+    overflow: hidden;
+    background: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .play:focus-visible {
+    outline: 1px solid var(--foreground-color);
+    outline-offset: 2px;
+  }
+
+  /* Same treatment as the home portrait: black and white until hovered, tapped or playing. */
+  .play img {
+    width: 100%;
+    height: 100%;
     filter: grayscale(1);
     opacity: 0.8;
     transition:
@@ -84,18 +148,68 @@ import { artists } from "../data/music";
       opacity 500ms ease;
   }
 
-  li:hover img,
-  li:active img {
+  li:hover .play img,
+  .playing .play img {
     filter: none;
     opacity: 1;
+  }
+
+  .icon {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 18px;
+    height: 18px;
+    fill: #fff;
+    filter: drop-shadow(0 0 4px rgb(0 0 0 / 0.5));
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+
+  .play:hover .icon,
+  .play:focus-visible .icon,
+  .playing .icon {
+    opacity: 1;
+  }
+
+  .icon-pause,
+  .playing .icon-play {
+    display: none;
+  }
+
+  .playing .icon-pause {
+    display: inline;
   }
 
   .text {
     flex: 1;
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     gap: 1rem;
+  }
+
+  .who {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .song {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  /* A hairline along the bottom of the row that fills as the preview plays. */
+  .progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    background: var(--foreground-color);
+    transform: scaleX(var(--progress, 0));
+    transform-origin: left;
+    transition: transform 250ms linear;
   }
 
   .credits {
@@ -106,7 +220,13 @@ import { artists } from "../data/music";
   @media (max-width: 480px) {
     .text {
       flex-direction: column;
+      align-items: flex-start;
       gap: 0;
+    }
+
+    .text > .muted {
+      font-size: 12px;
+      line-height: 1.5;
     }
   }
 </style>
