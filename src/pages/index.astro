@@ -12,59 +12,69 @@ const links = [
 
 <Layout title="Òscar Pérez">
   <section class="about">
+    <!-- The text leads on the left; the photo is a small aside on the right. -->
+    <div class="text">
+      <h1>Hi, I'm Òscar.</h1>
+      <!-- Placeholder copy: replace the [bracketed] parts. -->
+      <p>
+        I'm a [role] based in [city]. Right now I work at{" "}
+        <a href="#" target="_blank" rel="noopener noreferrer">[company]</a>, where I [what you do
+        there].
+      </p>
+      <p>
+        I started working in [year], when I [how it began: first job, first project]. Since then
+        I've [a line about the path so far].
+      </p>
+      <p>
+        {
+          links.map((link, i) => (
+            <span>
+              {i > 0 && <span class="sep"> / </span>}
+              <a href={link.href} target="_blank" rel="noopener noreferrer">
+                {link.label}
+              </a>
+            </span>
+          ))
+        }
+      </p>
+    </div>
+
     <Image
       class="me"
       src={me}
       alt="Òscar Pérez on the sand dunes"
-      width={88}
-      height={88}
+      width={64}
+      height={64}
       densities={[1, 2, 3]}
       loading="eager"
     />
-    <h1>Hi, I'm Òscar.</h1>
-    <!-- Placeholder copy: replace the [bracketed] parts. -->
-    <p>
-      I'm a [role] based in [city]. Right now I work at{" "}
-      <a href="#" target="_blank" rel="noopener noreferrer">[company]</a>, where I [what you do
-      there].
-    </p>
-    <p>
-      I started working in [year], when I [how it began: first job, first project]. Since then
-      I've [a line about the path so far].
-    </p>
-    <p>
-      {
-        links.map((link, i) => (
-          <span>
-            {i > 0 && <span class="sep"> / </span>}
-            <a href={link.href} target="_blank" rel="noopener noreferrer">
-              {link.label}
-            </a>
-          </span>
-        ))
-      }
-    </p>
   </section>
 </Layout>
 
 <style>
   .about {
-    display: flow-root; /* contain the floated photo */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2rem;
+    align-items: start;
   }
 
-  .about p {
+  h1 {
+    font-weight: 500;
+  }
+
+  .text p {
     margin-top: 1rem;
   }
 
-  /* Small and secondary: floats beside the intro, black and white until hovered or tapped. */
+  /* Small and secondary: black and white until hovered or tapped. */
   .me {
-    float: right;
-    width: 88px;
-    height: 88px;
-    margin: 0.25rem 0 0.5rem 1.5rem;
+    width: 64px;
+    height: 64px;
+    margin-top: 0.25rem;
     border-radius: 2px;
     filter: grayscale(1);
-    opacity: 0.85;
+    opacity: 0.8;
     transition:
       filter 500ms ease,
       opacity 500ms ease;
@@ -78,10 +88,13 @@ const links = [
   }
 
   @media (max-width: 480px) {
+    .about {
+      gap: 1.25rem;
+    }
+
     .me {
-      width: 64px;
-      height: 64px;
-      margin-left: 1rem;
+      width: 48px;
+      height: 48px;
     }
   }
 

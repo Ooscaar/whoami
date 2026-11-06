@@ -53,7 +53,13 @@ const updated = new Date().toLocaleDateString("en-US", {
       </main>
       <footer class="muted" transition:name="footer" transition:animate="none">
         <span>© {new Date().getFullYear()} Òscar Pérez</span>
-        <span>last updated {updated}</span>
+        <span>
+          made with{" "}
+          <a href="https://www.anthropic.com/claude" target="_blank" rel="noopener noreferrer">
+            claude opus 5.5
+          </a>{" "}
+          · <span class="nowrap">last updated {updated}</span>
+        </span>
       </footer>
     </div>
   </body>
@@ -153,9 +159,15 @@ const updated = new Date().toLocaleDateString("en-US", {
 
   footer {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.25rem 1rem;
     font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .nowrap {
+    white-space: nowrap;
   }
 
   .links {
