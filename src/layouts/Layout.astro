@@ -85,6 +85,8 @@ const updated = new Date().toLocaleDateString("en-US", {
     color: var(--foreground-color);
     font-family: var(--font-geist-mono);
     -webkit-font-smoothing: antialiased;
+    /* Keep the scrollbar's space, so locking scroll (photo viewer) doesn't shift the page. */
+    scrollbar-gutter: stable;
   }
 
   body {

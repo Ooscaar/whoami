@@ -75,14 +75,27 @@ const large = await Promise.all(
   const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const canMorph = () => !reducedMotion() && "startViewTransition" in document;
 
-  const preload = (src: string) =>
-    new Promise<void>((resolve) => {
-      const img = new Image();
-      img.onload = img.onerror = () => resolve();
-      img.src = src;
-      if (img.complete) resolve();
-      setTimeout(resolve, 1500); // never block opening for long
-    });
+  const preload = (src: string) => {
+    const img = new Image();
+    img.src = src;
+  };
+
+  // Wait until this exact <img> is decoded, so a view transition never snapshots it blank
+  // (that blank frame is the "flick"). Never block for long.
+  const ready = (img: HTMLImageElement) =>
+    Promise.race([
+      img.decode().catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+
+  // Mark the document while our morph runs, so its CSS only applies to it
+  // (and not to ClientRouter page transitions).
+  const morph = (update: () => void) => {
+    document.documentElement.dataset.galleryMorph = "";
+    const vt = document.startViewTransition(update);
+    vt.finished.finally(() => delete document.documentElement.dataset.galleryMorph);
+    return vt;
+  };
 
   // Runs on every client-side navigation (ClientRouter), not just the first load.
   document.addEventListener("astro:page-load", () => {
@@ -114,6 +127,7 @@ const large = await Promise.all(
     let index = 0;
     let width = 0;
     let animating = false;
+    let busy = false; // an open/close morph is in progress
 
     const at = (i: number) => items[(i + n) % n];
     const imgOf = (slide: HTMLElement) => slide.querySelector("img")!;
@@ -177,9 +191,12 @@ const large = await Promise.all(
     };
 
     const open = async (i: number) => {
+      if (busy || dialog.open) return;
+      busy = true;
       index = i;
       render();
-      await preload(at(i).full);
+      const current = imgOf(slides[1]);
+      await ready(current);
       const thumb = at(i).thumb;
       const show = () => {
         dialog.showModal();
@@ -187,34 +204,51 @@ const large = await Promise.all(
         measure();
         setOffset(0);
       };
-      if (!canMorph()) return show();
+      if (!canMorph()) {
+        show();
+        busy = false;
+        return;
+      }
 
       // The thumbnail grows into the full-screen photo.
-      const current = imgOf(slides[1]);
       thumb.style.viewTransitionName = NAME;
-      const vt = document.startViewTransition(() => {
+      const vt = morph(() => {
         thumb.style.viewTransitionName = "";
         current.style.viewTransitionName = NAME;
         show();
       });
-      vt.finished.finally(() => (current.style.viewTransitionName = ""));
+      vt.finished.finally(() => {
+        current.style.viewTransitionName = "";
+        busy = false;
+      });
     };
 
-    const close = () => {
-      if (!dialog.open) return;
+    const close = async () => {
+      if (busy || !dialog.open) return;
+      busy = true;
       const thumb = at(index).thumb;
       reveal(thumb);
-      if (!canMorph()) return dialog.close();
+      // After swiping, the thumbnail we return to may not have loaded yet (lazy).
+      thumb.loading = "eager";
+      await ready(thumb);
+      if (!canMorph()) {
+        dialog.close();
+        busy = false;
+        return;
+      }
 
       // The photo shrinks back into its spot in the grid.
       const current = imgOf(slides[1]);
       current.style.viewTransitionName = NAME;
-      const vt = document.startViewTransition(() => {
+      const vt = morph(() => {
         current.style.viewTransitionName = "";
         dialog.close();
         thumb.style.viewTransitionName = NAME;
       });
-      vt.finished.finally(() => (thumb.style.viewTransitionName = ""));
+      vt.finished.finally(() => {
+        thumb.style.viewTransitionName = "";
+        busy = false;
+      });
     };
 
     items.forEach(({ button, full }, i) => {
@@ -482,7 +516,8 @@ const large = await Promise.all(
     }
   }
 
-  /* The thumbnail <-> full-screen morph. */
+  /* The thumbnail <-> full-screen morph. Both snapshots are the same photo, so instead of
+     cross-fading them (which ghosts and flickers) the top one just scales into place. */
   :global(::view-transition-group(gallery-photo)) {
     animation-duration: 380ms;
     animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -490,6 +525,14 @@ const large = await Promise.all(
 
   :global(::view-transition-old(gallery-photo)),
   :global(::view-transition-new(gallery-photo)) {
-    animation-duration: 380ms;
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  /* The page behind fades in step with the photo. */
+  :global(html[data-gallery-morph]::view-transition-old(root)),
+  :global(html[data-gallery-morph]::view-transition-new(root)) {
+    animation-duration: 300ms;
+    animation-timing-function: ease-out;
   }
 </style>
