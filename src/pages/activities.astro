@@ -4,6 +4,7 @@
 // date and effort are stored and shown (no names, routes or locations).
 import { env } from "cloudflare:workers";
 import Layout from "../layouts/Layout.astro";
+import SportIcon from "../components/SportIcon.astro";
 import {
   dayTotals,
   recentActivities,
@@ -20,11 +21,23 @@ const now = new Date();
 const year = now.getUTCFullYear();
 const today = now.toISOString().slice(0, 10);
 
+// EXPERIMENT (local only): ?shade=time (default) | distance | sport
+const shade = Astro.url.searchParams.get("shade") ?? "time";
+let daySports: { day: string; sport_type: string; moving_time: number }[] = [];
+
 let latest: Activity[] = [];
 let sports: YearTotals[] = [];
 let days: DayTotals[] = [];
 try {
   [latest, sports, days] = await Promise.all([recentActivities(env.DB, 8), yearTotals(env.DB, year), dayTotals(env.DB, year)]);
+  daySports = (
+    await env.DB.prepare(
+      `SELECT substr(start_date_local, 1, 10) AS day, sport_type, sum(moving_time) AS moving_time
+       FROM activities WHERE substr(start_date_local, 1, 4) = ?1 GROUP BY day, sport_type`,
+    )
+      .bind(String(year))
+      .all<{ day: string; sport_type: string; moving_time: number }>()
+  ).results;
 } catch (error) {
   // No DB binding (plain `astro dev`) or no tables yet (before the first sync).
   console.warn("activities: couldn't read D1:", error);
@@ -45,6 +58,17 @@ const CELL = 9;
 const GAP = 3;
 const byDay = new Map(days.map((d) => [d.day, d]));
 const level = (seconds: number) => (seconds < 30 * 60 ? 1 : seconds < 60 * 60 ? 2 : seconds < 2 * 3600 ? 3 : 4);
+const distanceLevel = (m: number) => (m < 10_000 ? 1 : m < 25_000 ? 2 : m < 50_000 ? 3 : 4);
+// Muted, earthy colours that sit on the off-white background.
+const SPORT_COLORS: Record<string, string> = {
+  AlpineSki: "#5b6b8c", BackcountrySki: "#5b6b8c", NordicSki: "#5b6b8c", Snowboard: "#5b6b8c",
+  Ride: "#b5653a", MountainBikeRide: "#b5653a", GravelRide: "#b5653a", EBikeRide: "#b5653a", VirtualRide: "#b5653a",
+  Run: "#a8423f", TrailRun: "#a8423f", Walk: "#7a8450", Hike: "#7a8450",
+  Swim: "#3f8a8c", Tennis: "#a68a3a",
+};
+const sportColor = (sport: string) => SPORT_COLORS[sport] ?? "#262523";
+const mainSport = new Map<string, string>();
+for (const row of [...daySports].sort((a, b) => a.moving_time - b.moving_time)) mainSport.set(row.day, row.sport_type);
 const months = Array.from({ length: 12 }, (_, month) => {
   const first = new Date(Date.UTC(year, month, 1));
   const length = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
@@ -57,7 +81,8 @@ const months = Array.from({ length: 12 }, (_, month) => {
     return {
       x: Math.floor((offset + i) / 7) * (CELL + GAP),
       y: ((offset + i) % 7) * (CELL + GAP),
-      level: totals ? level(totals.moving_time) : 0,
+      level: !totals ? 0 : shade === "distance" ? (totals.distance > 0 ? distanceLevel(totals.distance) : 1) : level(totals.moving_time),
+      color: totals && shade === "sport" ? sportColor(mainSport.get(key)!) : undefined,
       future: key > today,
       title: totals
         ? `${label} · ${totals.sports.split(",").map(sportLabel).join(", ")} · ${formatDuration(totals.moving_time)}${totals.distance > 0 ? ` · ${formatDistance(totals.distance)}` : ""}`
@@ -104,7 +129,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
                 <span class="month-name">{m.name}</span>
                 <svg width={m.width} height={HEIGHT} viewBox={`0 0 ${m.width} ${HEIGHT}`} role="img" aria-label={`${m.name}: ${m.count} activities`}>
                   {m.cells.map((c) => (
-                    <rect x={c.x} y={c.y} width={CELL} height={CELL} rx="1.5" class={c.future ? "future" : `l${c.level}`}>
+                    <rect x={c.x} y={c.y} width={CELL} height={CELL} rx="1.5" class={c.future ? "future" : `l${c.level}`} style={c.color ? `fill: ${c.color}` : undefined}>
                       <title>{c.title}</title>
                     </rect>
                   ))}
@@ -114,6 +139,18 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
             ))}
           </ol>
 
+          {shade === "sport" && (
+            <p class="legend muted" aria-hidden="true">
+              {sports.map((s) => (
+                <span class="sport-key">
+                  <svg width={CELL} height={CELL} viewBox={`0 0 ${CELL} ${CELL}`}>
+                    <rect width={CELL} height={CELL} rx="1.5" class="l4" style={`fill: ${sportColor(s.sport_type)}`} />
+                  </svg>
+                  {sportLabel(s.sport_type)}
+                </span>
+              ))}
+            </p>
+          )}
           <p class="legend muted" aria-hidden="true">
             less
             {[0, 1, 2, 3, 4].map((l) => (
@@ -130,7 +167,10 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
           <ul class="rows">
             {sports.map((s) => (
               <li>
-                <span>{sportLabel(s.sport_type)}</span>
+                <span class="sport">
+                  <SportIcon sport={s.sport_type} color={shade === "sport" ? sportColor(s.sport_type) : undefined} />
+                  {sportLabel(s.sport_type)}
+                </span>
                 <span class="muted">
                   {s.count}× · {s.distance > 0 && `${formatDistance(s.distance)} · `}
                   {formatDuration(s.moving_time)}
@@ -148,8 +188,10 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
               const pace = a.distance > 0 ? formatPace(a.sport_type, a.average_speed) : null;
               return (
                 <li>
-                  <span>
-                    <span class="date muted">{formatDate(a.start_date_local)}</span> {sportLabel(a.sport_type)}
+                  <span class="sport">
+                    <span class="date muted">{formatDate(a.start_date_local)}</span>
+                    <SportIcon sport={a.sport_type} color={shade === "sport" ? sportColor(a.sport_type) : undefined} />
+                    {sportLabel(a.sport_type)}
                   </span>
                   <span class="muted">
                     {a.distance > 0 && `${formatDistance(a.distance)} · `}
@@ -169,19 +211,18 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
 </Layout>
 
 <style>
-  header,
   section {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--space-1);
   }
 
   .overview {
-    gap: 1.5rem;
+    gap: var(--space-4);
   }
 
   h2 {
-    font-size: 12px;
+    font-size: var(--small);
   }
 
   ul,
@@ -199,13 +240,13 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
   .months {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1.5rem 1rem;
+    gap: var(--space-4) var(--space-3);
   }
 
   .months li {
     display: flex;
     flex-direction: column;
-    gap: 0.375rem;
+    gap: var(--space-2);
   }
 
   .months li.future {
@@ -214,7 +255,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
 
   .month-name,
   .month-total {
-    font-size: 12px;
+    font-size: var(--small);
     line-height: 1.5;
   }
 
@@ -261,7 +302,14 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
     display: flex;
     align-items: center;
     gap: 3px;
-    font-size: 11px;
+    font-size: var(--small);
+  }
+
+  .sport-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 0.75rem;
   }
 
   .legend svg:first-of-type {
@@ -275,18 +323,24 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
   .rows li {
     display: flex;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 0.375rem 0;
-    border-top: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-top: var(--hairline);
   }
 
   .rows li:last-child {
-    border-bottom: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
+    border-bottom: var(--hairline);
   }
 
   .rows li > .muted {
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+
+  .sport {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .date {
@@ -295,8 +349,8 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
   }
 
   .credits {
-    font-size: 11px;
-    line-height: 1.6;
+    font-size: var(--small);
+    line-height: 1.5;
   }
 
   @media (max-width: 480px) {
@@ -312,7 +366,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
 
     .rows li > .muted {
       text-align: left;
-      font-size: 12px;
+      font-size: var(--small);
       line-height: 1.5;
     }
   }

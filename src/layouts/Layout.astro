@@ -65,6 +65,16 @@ const updated = new Date().toISOString().replace(/\.\d+Z$/, "Z");
     --background-color: #f5f4f1;
     --foreground-color: #262523;
     --muted: color-mix(in srgb, var(--foreground-color) 50%, transparent);
+    --hairline: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
+    /* One spacing scale for every page: a label and what it labels (1), rows and inline
+       icons (2), paragraphs and side-by-side items (3), groups inside a block (4), blocks (5). */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 1rem;
+    --space-4: 1.5rem;
+    --space-5: 4rem;
+    /* Secondary text (captions, labels, credits): one size everywhere. */
+    --small: 12px;
     color-scheme: light;
   }
 
@@ -146,8 +156,15 @@ const updated = new Date().toISOString().replace(/\.\d+Z$/, "Z");
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 4rem;
+    gap: var(--space-5);
     padding: 10vh 0 6rem;
+  }
+
+  /* Page title with its one-line intro underneath. */
+  main > header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .muted {
@@ -169,8 +186,8 @@ const updated = new Date().toISOString().replace(/\.\d+Z$/, "Z");
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 0.25rem 1rem;
-    font-size: 12px;
-    line-height: 1.6;
+    font-size: var(--small);
+    line-height: 1.5;
   }
 
   .nowrap {
