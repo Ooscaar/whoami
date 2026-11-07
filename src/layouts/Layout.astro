@@ -16,12 +16,8 @@ const nav = [
 
 const current = Astro.url.pathname.replace(/(\.html|\/)$/, "").replace(/\/index$/, "") || "/";
 
-// Like deadsimplesites.com's "Last updated" line — stamped at build time.
-const updated = new Date().toLocaleDateString("en-US", {
-  month: "2-digit",
-  day: "2-digit",
-  year: "2-digit",
-});
+// Like deadsimplesites.com's "Last updated" line — stamped at build time, ISO 8601 (no ms).
+const updated = new Date().toISOString().replace(/\.\d+Z$/, "Z");
 ---
 
 <html lang="en">
@@ -53,13 +49,7 @@ const updated = new Date().toLocaleDateString("en-US", {
       </main>
       <footer class="muted" transition:name="footer" transition:animate="none">
         <span>© {new Date().getFullYear()} Òscar Pérez</span>
-        <span>
-          made with{" "}
-          <a href="https://www.anthropic.com/claude" target="_blank" rel="noopener noreferrer">
-            claude opus 5.5
-          </a>{" "}
-          · <span class="nowrap">last updated {updated}</span>
-        </span>
+        <span class="nowrap">last updated <time datetime={updated}>{updated}</time></span>
       </footer>
     </div>
   </body>
@@ -87,6 +77,17 @@ const updated = new Date().toLocaleDateString("en-US", {
     -webkit-font-smoothing: antialiased;
     /* Keep the scrollbar's space, so locking scroll (photo viewer) doesn't shift the page. */
     scrollbar-gutter: stable;
+    /* No grey/blue flash when tapping links and buttons (inherited by everything). */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  button:focus:not(:focus-visible) {
+    outline: none;
   }
 
   body {

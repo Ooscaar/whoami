@@ -15,6 +15,8 @@ const large = await Promise.all(
         type="button"
         class="thumb"
         data-full={large[i].src}
+        data-width={large[i].attributes.width}
+        data-height={large[i].attributes.height}
         data-title={photo.title}
         data-description={photo.description}
         aria-label={`Open ${photo.title}`}
@@ -80,6 +82,8 @@ const large = await Promise.all(
     const items = [...gallery.querySelectorAll<HTMLButtonElement>(".thumb")].map((button) => ({
       button,
       full: button.dataset.full ?? "",
+      width: button.dataset.width ?? "",
+      height: button.dataset.height ?? "",
       title: button.dataset.title ?? "",
       description: button.dataset.description ?? "",
     }));
@@ -107,6 +111,12 @@ const large = await Promise.all(
     const fill = (slide: HTMLElement, i: number) => {
       const img = imgOf(slide);
       const item = at(i);
+      // Size the box from the known dimensions first, so it never shows at the previous
+      // photo's size while the new one loads.
+      img.width = +item.width;
+      img.height = +item.height;
+      img.style.setProperty("--w", item.width);
+      img.style.setProperty("--h", item.height);
       if (img.getAttribute("src") !== item.full) img.src = item.full;
       img.alt = item.description;
     };
@@ -484,13 +494,18 @@ const large = await Promise.all(
     justify-content: center;
     padding: 0 1.5rem;
     will-change: transform;
+    /* So the photo can size itself against the slide's content box (cqw/cqh). */
+    container-type: size;
   }
 
+  /* Fit inside the slide at the photo's own aspect ratio, computed from its known size
+     (not from the loaded file), so switching photos never resizes mid-load. */
   .slide img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
+    --w: 3;
+    --h: 2;
+    width: min(100cqw, 100cqh * var(--w) / var(--h), var(--w) * 1px);
     height: auto;
+    aspect-ratio: var(--w) / var(--h);
     object-fit: contain;
     -webkit-user-drag: none;
   }
