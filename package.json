@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "cf:build": "wrangler build --experimental-new-config --experimental-cf-build-output",
+    "cf:build": "npm run build && wrangler build --experimental-new-config --experimental-cf-build-output",
     "preview": "wrangler dev --experimental-new-config",
     "deploy": "npm run cf:build && cf deploy --prebuilt"
   },
