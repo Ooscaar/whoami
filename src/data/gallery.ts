@@ -6,6 +6,7 @@ import barcelonaCampNou from "../assets/gallery/2025-barcelona-camp-nou.jpg";
 import barcelonaTibidabo from "../assets/gallery/2025-barcelona-tibidabo.jpg";
 import tarifaSunset from "../assets/gallery/2021-tarifa-sunset.jpg";
 import switzerlandOeschinensee from "../assets/gallery/2023-switzerland-oeschinensee.jpg";
+import leuvenSnow from "../assets/gallery/2023-leuven-snow.jpg";
 import londonFulham from "../assets/gallery/2025-london-fulham.jpg";
 import madridAtleticoBarcelona from "../assets/gallery/2026-madrid-atletico-barcelona.jpg";
 
@@ -57,5 +58,10 @@ export const photos: Photo[] = [
     src: londonFulham,
     title: "London, 2025",
     description: "Parent and child day out at Craven Cottage for a Fulham match.",
+  },
+  {
+    src: leuvenSnow,
+    title: "Leuven, 2023",
+    description: "A snowy day from my Erasmus residence.",
   },
 ];
