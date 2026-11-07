@@ -1,5 +1,6 @@
 import type { ImageMetadata } from "astro";
 
+import andorraForest from "../assets/gallery/2023-andorra-forest.jpg";
 import andorraSkiing from "../assets/gallery/2025-andorra-skiing.jpg";
 import barcelonaCampNou from "../assets/gallery/2025-barcelona-camp-nou.jpg";
 import barcelonaTibidabo from "../assets/gallery/2025-barcelona-tibidabo.jpg";
@@ -45,5 +46,10 @@ export const photos: Photo[] = [
     src: switzerlandOeschinensee,
     title: "Oeschinensee, Switzerland, 2023",
     description: "A summer day by the lake, below the Blüemlisalp.",
+  },
+  {
+    src: andorraForest,
+    title: "Andorra, 2023",
+    description: "A casual day in the snowy forest.",
   },
 ];
