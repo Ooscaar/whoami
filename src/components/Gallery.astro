@@ -14,6 +14,7 @@ const large = await Promise.all(
       <button
         type="button"
         class="thumb"
+        data-index={i}
         data-full={large[i].src}
         data-width={large[i].attributes.width}
         data-height={large[i].attributes.height}
@@ -32,6 +33,33 @@ const large = await Promise.all(
     ))
   }
 </div>
+
+<!-- Masonry in reading order: each photo, in list order, goes into the shortest column, so
+     the page reads left to right, top to bottom, matching the viewer's counter. Inline, so it
+     runs before the first paint and on every navigation; plain CSS columns are the fallback. -->
+<script is:inline>
+  (() => {
+    const gallery = document.querySelector(".gallery");
+    if (!gallery) return;
+    const thumbs = [...gallery.querySelectorAll(".thumb")].sort((a, b) => a.dataset.index - b.dataset.index);
+    const wide = window.matchMedia("(min-width: 768px)");
+    const layout = () => {
+      if (!gallery.isConnected) return wide.removeEventListener("change", layout);
+      const cols = Array.from({ length: wide.matches ? 3 : 2 }, () => document.createElement("div"));
+      const heights = cols.map(() => 0);
+      for (const thumb of thumbs) {
+        const k = heights.indexOf(Math.min(...heights));
+        cols[k].append(thumb);
+        // Height relative to the column width, plus roughly the gap below each photo.
+        heights[k] += thumb.dataset.height / thumb.dataset.width + 0.1;
+      }
+      gallery.replaceChildren(...cols);
+      gallery.classList.add("laid-out");
+    };
+    layout();
+    wide.addEventListener("change", layout);
+  })();
+</script>
 
 <dialog class="viewer" aria-label="Photo viewer" tabindex="-1">
   <div class="scrim"></div>
@@ -86,7 +114,10 @@ const large = await Promise.all(
     const dialog = document.querySelector<HTMLDialogElement>(".viewer");
     if (!gallery || !dialog) return;
 
-    const items = [...gallery.querySelectorAll<HTMLButtonElement>(".thumb")].map((button) => ({
+    // In list order, not DOM order (the thumbnails are split into columns).
+    const items = [...gallery.querySelectorAll<HTMLButtonElement>(".thumb")]
+      .sort((a, b) => +(a.dataset.index ?? 0) - +(b.dataset.index ?? 0))
+      .map((button) => ({
       button,
       full: button.dataset.full ?? "",
       width: button.dataset.width ?? "",
@@ -374,6 +405,23 @@ const large = await Promise.all(
       columns: 3;
       column-gap: 2.5rem;
     }
+  }
+
+  .gallery.laid-out {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .gallery.laid-out {
+      gap: 2.5rem;
+    }
+  }
+
+  .gallery.laid-out > :global(div) {
+    flex: 1;
+    min-width: 0;
   }
 
   .thumb {
