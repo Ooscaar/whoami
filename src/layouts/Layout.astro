@@ -27,6 +27,9 @@ const updated = new Date().toISOString().replace(/\.\d+Z$/, "Z");
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <title>{title}</title>
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <Font cssVariable="--font-geist-mono" preload />
     <!-- Client-side navigation: pages swap in place instead of a full reload. -->
     <ClientRouter />
