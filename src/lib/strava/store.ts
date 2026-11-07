@@ -1,5 +1,8 @@
 // D1 storage for the Strava data: the rotating tokens, and the activities the site shows.
 // The schema is created on first use (idempotent), so there are no migrations to run.
+//
+// Anonymised by design: only the sport, date and effort (distance, time, elevation) are stored.
+// No names, routes, coordinates, timezones or heart rate ever reach D1, so the site can't leak them.
 
 import type { SummaryActivity, TokenStore, Tokens } from "./client.ts";
 
@@ -13,20 +16,16 @@ const SCHEMA = [
   )`,
   `CREATE TABLE IF NOT EXISTS activities (
     id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
     sport_type TEXT NOT NULL,
     start_date TEXT NOT NULL,
     start_date_local TEXT NOT NULL,
-    timezone TEXT,
     distance REAL NOT NULL,
     moving_time INTEGER NOT NULL,
     elapsed_time INTEGER NOT NULL,
     total_elevation_gain REAL NOT NULL,
     average_speed REAL NOT NULL,
-    average_heartrate REAL,
     kudos_count INTEGER NOT NULL DEFAULT 0,
     pr_count INTEGER NOT NULL DEFAULT 0,
-    summary_polyline TEXT,
     updated_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS activities_start_date ON activities (start_date DESC)`,
@@ -39,25 +38,21 @@ export async function ensureSchema(db: D1Database): Promise<void> {
 /** One row per activity, as stored (and read by the page). */
 export interface Activity {
   id: number;
-  name: string;
   sport_type: string;
   start_date: string;
   start_date_local: string;
-  timezone: string | null;
   distance: number;
   moving_time: number;
   elapsed_time: number;
   total_elevation_gain: number;
   average_speed: number;
-  average_heartrate: number | null;
   kudos_count: number;
   pr_count: number;
-  summary_polyline: string | null;
 }
 
-/** Only activities visible to everyone on Strava end up on the site. */
+/** Activities visible to everyone or to followers end up on the site; "only you" ones never do. */
 export function isPublic(activity: SummaryActivity): boolean {
-  return !activity.private && (activity.visibility ?? "everyone") === "everyone";
+  return !activity.private && activity.visibility !== "only_me";
 }
 
 export function d1TokenStore(db: D1Database): TokenStore {
@@ -85,31 +80,27 @@ export async function upsertActivities(db: D1Database, activities: SummaryActivi
   if (activities.length === 0) return;
   const now = new Date().toISOString();
   const statement = db.prepare(
-    `INSERT INTO activities (id, name, sport_type, start_date, start_date_local, timezone, distance, moving_time,
-       elapsed_time, total_elevation_gain, average_speed, average_heartrate, kudos_count, pr_count, summary_polyline, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
-     ON CONFLICT (id) DO UPDATE SET name = ?2, sport_type = ?3, start_date = ?4, start_date_local = ?5, timezone = ?6,
-       distance = ?7, moving_time = ?8, elapsed_time = ?9, total_elevation_gain = ?10, average_speed = ?11,
-       average_heartrate = ?12, kudos_count = ?13, pr_count = ?14, summary_polyline = ?15, updated_at = ?16`,
+    `INSERT INTO activities (id, sport_type, start_date, start_date_local, distance, moving_time, elapsed_time,
+       total_elevation_gain, average_speed, kudos_count, pr_count, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+     ON CONFLICT (id) DO UPDATE SET sport_type = ?2, start_date = ?3, start_date_local = ?4, distance = ?5,
+       moving_time = ?6, elapsed_time = ?7, total_elevation_gain = ?8, average_speed = ?9, kudos_count = ?10,
+       pr_count = ?11, updated_at = ?12`,
   );
   await db.batch(
     activities.map((a) =>
       statement.bind(
         a.id,
-        a.name,
         a.sport_type ?? a.type,
         a.start_date,
         a.start_date_local,
-        a.timezone ?? null,
         a.distance,
         a.moving_time,
         a.elapsed_time,
         a.total_elevation_gain,
         a.average_speed,
-        a.average_heartrate ?? null,
         a.kudos_count ?? 0,
         a.pr_count ?? 0,
-        a.map?.summary_polyline || null,
         now,
       ),
     ),
@@ -153,5 +144,29 @@ export async function yearTotals(db: D1Database, year: number): Promise<YearTota
     )
     .bind(String(year))
     .all<YearTotals>();
+  return results;
+}
+
+export interface DayTotals {
+  /** YYYY-MM-DD, local to the activity. */
+  day: string;
+  count: number;
+  distance: number;
+  moving_time: number;
+  /** Comma-separated sport types that day. */
+  sports: string;
+}
+
+/** Totals per day for one calendar year (by local start date), for the calendar and monthly chart. */
+export async function dayTotals(db: D1Database, year: number): Promise<DayTotals[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT substr(start_date_local, 1, 10) AS day, count(*) AS count, sum(distance) AS distance,
+         sum(moving_time) AS moving_time, group_concat(DISTINCT sport_type) AS sports
+       FROM activities WHERE substr(start_date_local, 1, 4) = ?1
+       GROUP BY day ORDER BY day`,
+    )
+    .bind(String(year))
+    .all<DayTotals>();
   return results;
 }

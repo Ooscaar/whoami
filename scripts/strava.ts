@@ -167,7 +167,7 @@ const commands: Record<string, { usage: string; run: (args: string[]) => Promise
       ok(`GET /athlete/activities → ${activities.length} latest:`);
       for (const a of activities) {
         const km = (a.distance / 1000).toFixed(1);
-        info(`${a.start_date_local.slice(0, 10)}  ${a.sport_type.padEnd(14)} ${km.padStart(6)} km  ${a.name}${a.visibility && a.visibility !== "everyone" ? `  (${a.visibility}, hidden on the site)` : ""}`);
+        info(`${a.start_date_local.slice(0, 10)}  ${a.sport_type.padEnd(14)} ${km.padStart(6)} km  ${a.name}${a.private || a.visibility === "only_me" ? "  (only you, hidden on the site)" : ""}`);
       }
 
       if (strava.rateLimit) {
@@ -193,36 +193,63 @@ const commands: Record<string, { usage: string; run: (args: string[]) => Promise
   },
 
   sync: {
-    usage: "sync [--url=<site>]     Run the sync on the deployed site now (first backfill, or to test)",
+    usage: "sync [--since=YYYY-MM-DD] [--url=<site>]  Run the sync on the site now (e.g. --since=2026-01-01 to backfill 2026)",
     async run(args) {
       const env = readEnv();
       required(env, "STRAVA_VERIFY_TOKEN");
       const site = siteUrl(args, env);
-      const response = await fetch(`${site}/api/strava/sync`, {
+      const since = args.find((arg) => arg.startsWith("--since="))?.slice("--since=".length);
+      const response = await fetch(`${site}/api/strava/sync${since ? `?since=${encodeURIComponent(since)}` : ""}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${env.STRAVA_VERIFY_TOKEN}` },
       });
       const body = await response.text();
       if (!response.ok) fail(`POST ${site}/api/strava/sync → ${response.status}: ${body}`);
-      ok(`POST ${site}/api/strava/sync → ${body}`);
+      ok(`POST ${site}/api/strava/sync${since ? `?since=${since}` : ""} → ${body}`);
     },
   },
 
   webhook: {
-    usage: "webhook <subscribe|list|delete <id>> [--url=<site>]  Manage the Strava webhook subscription",
+    usage: "webhook <status|subscribe|list|delete <id>> [--url=<site>]  Manage the Strava webhook subscription",
     async run([action, id, ...rest]) {
       const env = readEnv();
       required(env, "STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET");
       const credentials = { client_id: env.STRAVA_CLIENT_ID, client_secret: env.STRAVA_CLIENT_SECRET };
       const endpoint = "https://www.strava.com/api/v3/push_subscriptions";
+      const callback = `${siteUrl([id, ...rest].filter(Boolean), env)}/api/strava/webhook`;
+      const subscriptions = async () => {
+        const response = await fetch(`${endpoint}?${new URLSearchParams(credentials)}`);
+        if (!response.ok) fail(`Listing subscriptions failed (${response.status}): ${await response.text()}`);
+        return (await response.json()) as { id: number; callback_url: string; created_at: string }[];
+      };
 
       if (action === "list") {
-        const response = await fetch(`${endpoint}?${new URLSearchParams(credentials)}`);
-        return console.log(JSON.stringify(await response.json(), null, 2));
+        return console.log(JSON.stringify(await subscriptions(), null, 2));
+      }
+      if (action === "status") {
+        // 1. Is there a subscription, and does it point at this site?
+        const subs = await subscriptions();
+        if (subs.length === 0) warn("No webhook subscription. Run: npm run strava -- webhook subscribe");
+        for (const sub of subs) {
+          if (sub.callback_url === callback) ok(`Subscribed (id ${sub.id}, since ${sub.created_at}) → ${sub.callback_url}`);
+          else warn(`Subscription ${sub.id} points elsewhere: ${sub.callback_url}`);
+        }
+        // 2. Does the callback answer Strava's validation the way Strava expects?
+        required(env, "STRAVA_VERIFY_TOKEN");
+        const challenge = randomBytes(8).toString("hex");
+        const query = new URLSearchParams({ "hub.mode": "subscribe", "hub.challenge": challenge, "hub.verify_token": env.STRAVA_VERIFY_TOKEN });
+        const started = Date.now();
+        const response = await fetch(`${callback}?${query}`);
+        const elapsed = Date.now() - started;
+        const body = (await response.json().catch(() => null)) as Record<string, string> | null;
+        if (response.ok && body?.["hub.challenge"] === challenge) ok(`Callback echoes the challenge (${elapsed} ms; Strava allows 2 s)`);
+        else fail(`Callback check failed (${response.status}): ${JSON.stringify(body)}. Is STRAVA_VERIFY_TOKEN the same on the Worker (run \`secrets\`)?`);
+        return;
       }
       if (action === "subscribe") {
         required(env, "STRAVA_VERIFY_TOKEN");
-        const callback = `${siteUrl([id, ...rest].filter(Boolean), env)}/api/strava/webhook`;
+        const existing = (await subscriptions()).find((sub) => sub.callback_url === callback);
+        if (existing) return ok(`Already subscribed (id ${existing.id}) → ${callback}`);
         // Strava validates the callback (GET with hub.challenge) before answering this request.
         const response = await fetch(endpoint, {
           method: "POST",
@@ -237,7 +264,7 @@ const commands: Record<string, { usage: string; run: (args: string[]) => Promise
         if (response.status !== 204) fail(`Delete failed (${response.status}): ${await response.text()}`);
         return ok(`Deleted subscription ${id}`);
       }
-      fail("Usage: webhook subscribe [--url=<site>] | webhook list | webhook delete <id>");
+      fail("Usage: webhook status | webhook subscribe [--url=<site>] | webhook list | webhook delete <id>");
     },
   },
 };
@@ -252,7 +279,7 @@ const command = commands[name];
 if (!command) {
   console.log("Usage: npm run strava -- <command>\n");
   for (const { usage } of Object.values(commands)) console.log(`  ${usage}`);
-  console.log("\nSetup: cp .env.example .env → fill STRAVA_CLIENT_ID/SECRET → auth-url → exchange → verify-token → check → secrets");
+  console.log("\nSetup: cp .env.example .env → fill STRAVA_CLIENT_ID/SECRET → auth-url → exchange → verify-token → check → secrets → sync --since=2026-01-01 → webhook subscribe");
   process.exit(name ? 1 : 0);
 }
 

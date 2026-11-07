@@ -1,88 +1,167 @@
 ---
 // Rendered on each request from D1, which the Strava webhook + daily cron keep up to date
-// (src/lib/strava/sync.ts). Visitors never trigger a Strava API call.
+// (src/lib/strava/sync.ts). Visitors never trigger a Strava API call. Anonymised: only sport,
+// date and effort are stored and shown (no names, routes or locations).
 import { env } from "cloudflare:workers";
 import Layout from "../layouts/Layout.astro";
-import { recentActivities, yearTotals, type Activity, type YearTotals } from "../lib/strava/store.ts";
-import { formatDate, formatDistance, formatDuration, formatPace, routePath, sportLabel } from "../lib/strava/format.ts";
+import {
+  dayTotals,
+  recentActivities,
+  yearTotals,
+  type Activity,
+  type DayTotals,
+  type YearTotals,
+} from "../lib/strava/store.ts";
+import { formatDate, formatDistance, formatDuration, formatPace, MONTHS, sportLabel } from "../lib/strava/format.ts";
 
 export const prerender = false;
 
-const year = new Date().getUTCFullYear();
-let activities: Activity[] = [];
-let totals: YearTotals[] = [];
+const now = new Date();
+const year = now.getUTCFullYear();
+const today = now.toISOString().slice(0, 10);
+
+let latest: Activity[] = [];
+let sports: YearTotals[] = [];
+let days: DayTotals[] = [];
 try {
-  [activities, totals] = await Promise.all([recentActivities(env.DB, 30), yearTotals(env.DB, year)]);
+  [latest, sports, days] = await Promise.all([recentActivities(env.DB, 8), yearTotals(env.DB, year), dayTotals(env.DB, year)]);
 } catch (error) {
   // No DB binding (plain `astro dev`) or no tables yet (before the first sync).
   console.warn("activities: couldn't read D1:", error);
 }
 
-Astro.response.headers.set("Cache-Control", "public, max-age=300");
+const total = sports.reduce(
+  (sum, s) => ({
+    count: sum.count + s.count,
+    distance: sum.distance + s.distance,
+    time: sum.time + s.moving_time,
+    elevation: sum.elevation + s.elevation,
+  }),
+  { count: 0, distance: 0, time: 0, elevation: 0 },
+);
 
-const ROUTE_SIZE = 40;
+// One small GitHub-style calendar per month: a column per week (Monday first), a square per day.
+const CELL = 9;
+const GAP = 3;
+const byDay = new Map(days.map((d) => [d.day, d]));
+const level = (seconds: number) => (seconds < 30 * 60 ? 1 : seconds < 60 * 60 ? 2 : seconds < 2 * 3600 ? 3 : 4);
+const months = Array.from({ length: 12 }, (_, month) => {
+  const first = new Date(Date.UTC(year, month, 1));
+  const length = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const offset = (first.getUTCDay() + 6) % 7;
+  const cells = Array.from({ length }, (_, i) => {
+    const date = new Date(Date.UTC(year, month, i + 1));
+    const key = date.toISOString().slice(0, 10);
+    const totals = byDay.get(key);
+    const label = formatDate(key, now);
+    return {
+      x: Math.floor((offset + i) / 7) * (CELL + GAP),
+      y: ((offset + i) % 7) * (CELL + GAP),
+      level: totals ? level(totals.moving_time) : 0,
+      future: key > today,
+      title: totals
+        ? `${label} · ${totals.sports.split(",").map(sportLabel).join(", ")} · ${formatDuration(totals.moving_time)}${totals.distance > 0 ? ` · ${formatDistance(totals.distance)}` : ""}`
+        : label,
+    };
+  });
+  const active = days.filter((d) => Number(d.day.slice(5, 7)) === month + 1);
+  return {
+    name: MONTHS[month],
+    width: Math.ceil((offset + length) / 7) * (CELL + GAP) - GAP,
+    cells,
+    count: active.reduce((sum, d) => sum + d.count, 0),
+    time: active.reduce((sum, d) => sum + d.moving_time, 0),
+    future: month > now.getUTCMonth(),
+  };
+});
+const HEIGHT = 7 * (CELL + GAP) - GAP;
+const meters = (m: number) => `${Math.round(m).toLocaleString("en-GB")} m up`;
+
+Astro.response.headers.set("Cache-Control", "public, max-age=300");
 ---
 
-<Layout title="Activities — Òscar Pérez" description="What Òscar Pérez has been running and riding lately">
+<Layout title="Activities — Òscar Pérez" description="Òscar Pérez's year in training">
   <header>
     <h1>activities</h1>
-    <p class="muted">what I've been running and riding lately, synced from strava.</p>
+    <p class="muted">my {year} in training, from strava. a square per day, darker means longer.</p>
   </header>
 
   {
-    totals.length > 0 && (
-      <section class="totals" aria-label={`${year} so far`}>
-        <h2 class="muted">{year} so far</h2>
-        <ul>
-          {totals.map((t) => (
-            <li>
-              <span>{sportLabel(t.sport_type)}</span>
-              <span class="muted">
-                {t.count}× · {formatDistance(t.distance)} · {formatDuration(t.moving_time)}
-                {t.elevation >= 1 && ` · ${Math.round(t.elevation)} m up`}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-    )
-  }
-
-  {
-    activities.length === 0 ? (
+    total.count === 0 ? (
       <p class="muted">no activities yet.</p>
     ) : (
-      <ul class="list">
-        {activities.map((a) => {
-          const route = a.summary_polyline ? routePath(a.summary_polyline, ROUTE_SIZE) : null;
-          const pace = formatPace(a.sport_type, a.average_speed);
-          return (
-            <li>
-              <svg class="route" viewBox={`0 0 ${ROUTE_SIZE} ${ROUTE_SIZE}`} aria-hidden="true">
-                {route ? <path d={route} /> : <circle cx={ROUTE_SIZE / 2} cy={ROUTE_SIZE / 2} r="1.5" />}
+      <>
+        <section class="overview" aria-label={`${year} so far`}>
+          <p class="summary">
+            <span class="nowrap">{total.count} activities</span> · <span class="nowrap">{formatDistance(total.distance)}</span> ·{" "}
+            <span class="nowrap">{formatDuration(total.time)}</span>
+            {total.elevation >= 1 && <> · <span class="nowrap">{meters(total.elevation)}</span></>}
+          </p>
+
+          <ol class="months">
+            {months.map((m) => (
+              <li class:list={{ future: m.future }}>
+                <span class="month-name">{m.name}</span>
+                <svg width={m.width} height={HEIGHT} viewBox={`0 0 ${m.width} ${HEIGHT}`} role="img" aria-label={`${m.name}: ${m.count} activities`}>
+                  {m.cells.map((c) => (
+                    <rect x={c.x} y={c.y} width={CELL} height={CELL} rx="1.5" class={c.future ? "future" : `l${c.level}`}>
+                      <title>{c.title}</title>
+                    </rect>
+                  ))}
+                </svg>
+                <span class="month-total muted">{m.count > 0 ? `${m.count}× · ${formatDuration(m.time)}` : m.future ? "" : "—"}</span>
+              </li>
+            ))}
+          </ol>
+
+          <p class="legend muted" aria-hidden="true">
+            less
+            {[0, 1, 2, 3, 4].map((l) => (
+              <svg width={CELL} height={CELL} viewBox={`0 0 ${CELL} ${CELL}`}>
+                <rect width={CELL} height={CELL} rx="1.5" class={`l${l}`} />
               </svg>
-              <div class="text">
-                <div class="what">
-                  <span class="name">{a.name}</span>
-                  <span class="meta muted">
-                    {formatDate(a.start_date_local)} · {sportLabel(a.sport_type)} ·{" "}
-                    <a href={`https://www.strava.com/activities/${a.id}`} target="_blank" rel="noopener noreferrer">
-                      View on Strava
-                    </a>
+            ))}
+            more
+          </p>
+        </section>
+
+        <section aria-labelledby="by-sport">
+          <h2 id="by-sport" class="muted">by sport</h2>
+          <ul class="rows">
+            {sports.map((s) => (
+              <li>
+                <span>{sportLabel(s.sport_type)}</span>
+                <span class="muted">
+                  {s.count}× · {s.distance > 0 && `${formatDistance(s.distance)} · `}
+                  {formatDuration(s.moving_time)}
+                  {s.elevation >= 1 && ` · ${meters(s.elevation)}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section aria-labelledby="latest">
+          <h2 id="latest" class="muted">latest</h2>
+          <ul class="rows">
+            {latest.map((a) => {
+              const pace = a.distance > 0 ? formatPace(a.sport_type, a.average_speed) : null;
+              return (
+                <li>
+                  <span>
+                    <span class="date muted">{formatDate(a.start_date_local)}</span> {sportLabel(a.sport_type)}
                   </span>
-                </div>
-                <div class="stats">
-                  <span>{a.distance > 0 ? formatDistance(a.distance) : formatDuration(a.moving_time)}</span>
                   <span class="muted">
-                    {a.distance > 0 ? formatDuration(a.moving_time) : ""}
-                    {a.distance > 0 && pace && ` · ${pace}`}
+                    {a.distance > 0 && `${formatDistance(a.distance)} · `}
+                    {formatDuration(a.moving_time)}
+                    {pace && ` · ${pace}`}
                   </span>
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      </>
     )
   }
 
@@ -91,104 +170,128 @@ const ROUTE_SIZE = 40;
 
 <style>
   header,
-  .totals {
+  section {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
   }
 
-  ul {
+  .overview {
+    gap: 1.5rem;
+  }
+
+  h2 {
+    font-size: 12px;
+  }
+
+  ul,
+  ol {
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .totals h2 {
-    font-size: 12px;
-  }
-
-  .totals li {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .totals li .muted {
-    text-align: right;
-  }
-
-  .meta a {
+  .nowrap {
     white-space: nowrap;
   }
 
-  .list li {
+  /* Twelve small month calendars. */
+  .months {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.5rem 1rem;
+  }
+
+  .months li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  .months li.future {
+    opacity: 0.5;
+  }
+
+  .month-name,
+  .month-total {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .month-total {
+    min-height: 1.5em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  svg {
+    display: block;
+    overflow: visible;
+  }
+
+  /* Squares: faint when empty, then darker with more time that day. */
+  rect {
+    fill: var(--foreground-color);
+  }
+
+  .l0 {
+    fill-opacity: 0.07;
+  }
+
+  .l1 {
+    fill-opacity: 0.25;
+  }
+
+  .l2 {
+    fill-opacity: 0.45;
+  }
+
+  .l3 {
+    fill-opacity: 0.7;
+  }
+
+  .l4 {
+    fill-opacity: 0.95;
+  }
+
+  rect.future {
+    fill-opacity: 0.03;
+  }
+
+  .legend {
     display: flex;
     align-items: center;
+    gap: 3px;
+    font-size: 11px;
+  }
+
+  .legend svg:first-of-type {
+    margin-left: 0.25rem;
+  }
+
+  .legend svg:last-of-type {
+    margin-right: 0.25rem;
+  }
+
+  .rows li {
+    display: flex;
+    justify-content: space-between;
     gap: 1rem;
-    padding: 0.75rem 0;
+    padding: 0.375rem 0;
     border-top: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
   }
 
-  .list li:last-child {
+  .rows li:last-child {
     border-bottom: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
   }
 
-  /* The route as a thin line drawing, faded like the photos until hovered. */
-  .route {
-    flex: none;
-    width: 40px;
-    height: 40px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.25;
-    stroke-linejoin: round;
-    stroke-linecap: round;
-    opacity: 0.45;
-    transition: opacity 300ms ease;
-  }
-
-  .route circle {
-    fill: currentColor;
-    stroke: none;
-  }
-
-  .list li:hover .route {
-    opacity: 1;
-  }
-
-  .text {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .what,
-  .stats {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .stats {
-    flex: none;
-    align-items: flex-end;
+  .rows li > .muted {
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
 
-  .meta,
-  .stats .muted {
-    font-size: 12px;
-    line-height: 1.5;
+  .date {
+    display: inline-block;
+    min-width: 4.5rem;
   }
 
   .credits {
@@ -197,21 +300,20 @@ const ROUTE_SIZE = 40;
   }
 
   @media (max-width: 480px) {
-    .text {
+    .months {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    /* Label on top, numbers underneath, instead of both squeezed onto one line. */
+    .rows li {
       flex-direction: column;
-      align-items: flex-start;
       gap: 0;
     }
 
-    .stats {
-      flex-direction: row;
-      gap: 0.5rem;
-      align-items: baseline;
-    }
-
-    .stats .muted,
-    .totals li .muted {
+    .rows li > .muted {
+      text-align: left;
       font-size: 12px;
+      line-height: 1.5;
     }
   }
 </style>

@@ -32,55 +32,11 @@ export function formatPace(sportType: string, metersPerSecond: number): string |
   return `${(metersPerSecond * 3.6).toFixed(1)} km/h`;
 }
 
+export const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
 /** "2026-11-07T08:15:00Z" (Strava's local time) → "7 nov" (or "7 nov 2025" outside this year) */
 export function formatDate(startDateLocal: string, now = new Date()): string {
   const date = new Date(startDateLocal);
-  const sameYear = date.getUTCFullYear() === now.getUTCFullYear();
-  return date
-    .toLocaleDateString("en-GB", { day: "numeric", month: "short", year: sameYear ? undefined : "numeric", timeZone: "UTC" })
-    .toLowerCase();
-}
-
-/** Google's encoded polyline format → [lat, lng] pairs. */
-export function decodePolyline(encoded: string): [number, number][] {
-  const points: [number, number][] = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-  const next = () => {
-    let result = 0;
-    let shift = 0;
-    let byte: number;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    return result & 1 ? ~(result >> 1) : result >> 1;
-  };
-  while (index < encoded.length) {
-    lat += next();
-    lng += next();
-    points.push([lat / 1e5, lng / 1e5]);
-  }
-  return points;
-}
-
-/** An SVG path for the route, fitted (keeping its proportions) into a size × size box. */
-export function routePath(encoded: string, size: number, padding = 2): string | null {
-  const points = decodePolyline(encoded);
-  if (points.length < 2) return null;
-  // Longitude degrees shrink towards the poles: scale x so the shape isn't stretched.
-  const meanLat = points.reduce((sum, [lat]) => sum + lat, 0) / points.length;
-  const kx = Math.cos((meanLat * Math.PI) / 180);
-  const xy = points.map(([lat, lng]) => [lng * kx, -lat]);
-  const xs = xy.map(([x]) => x);
-  const ys = xy.map(([, y]) => y);
-  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const scale = (size - padding * 2) / Math.max(maxX - minX, maxY - minY, 1e-9);
-  const offsetX = (size - (maxX - minX) * scale) / 2;
-  const offsetY = (size - (maxY - minY) * scale) / 2;
-  return xy
-    .map(([x, y], i) => `${i ? "L" : "M"}${((x - minX) * scale + offsetX).toFixed(1)} ${((y - minY) * scale + offsetY).toFixed(1)}`)
-    .join("");
+  const label = `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
+  return date.getUTCFullYear() === now.getUTCFullYear() ? label : `${label} ${date.getUTCFullYear()}`;
 }

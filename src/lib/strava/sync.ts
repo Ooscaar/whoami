@@ -44,13 +44,24 @@ function client(env: StravaEnv): StravaClient {
   });
 }
 
-export async function syncRecent(env: StravaEnv): Promise<{ fetched: number; stored: number; backfill: boolean }> {
+/**
+ * Fetches activities newer than the latest stored one (all of them on an empty table), or since
+ * `since` (epoch seconds) when given, e.g. to backfill just this year.
+ */
+export async function syncRecent(
+  env: StravaEnv,
+  options: { since?: number } = {},
+): Promise<{ fetched: number; stored: number; after: string | null }> {
   await ensureSchema(env.DB);
-  const latest = await latestStartTime(env.DB);
-  const activities = await client(env).listAllActivities({ after: latest ?? undefined });
+  const after = options.since ?? (await latestStartTime(env.DB)) ?? undefined;
+  const activities = await client(env).listAllActivities({ after });
   const visible = activities.filter(isPublic);
   await upsertActivities(env.DB, visible);
-  return { fetched: activities.length, stored: visible.length, backfill: latest === null };
+  return {
+    fetched: activities.length,
+    stored: visible.length,
+    after: after === undefined ? null : new Date(after * 1000).toISOString(),
+  };
 }
 
 export async function syncEvent(env: StravaEnv, event: WebhookEvent): Promise<string> {
