@@ -1,13 +1,24 @@
 // Display helpers for the activities page.
 
-/** "TrailRun" → "trail run" */
+/**
+ * The name shown for a Strava sport type: every kind of bike ride (Ride, MountainBikeRide,
+ * GravelRide, …) is "mtb", the rest are spelled out ("TrailRun" → "trail run").
+ */
 export function sportLabel(sportType: string): string {
+  if (/ride/i.test(sportType)) return "mtb";
   return sportType.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }
 
-/** 12345 m → "12.3 km" */
+/** 12345 m → "12.3 km"; from 100 km on, whole numbers: 2321987 m → "2,322 km" */
 export function formatDistance(meters: number): string {
-  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+  const km = meters / 1000;
+  if (km >= 100) return `${Math.round(km).toLocaleString("en-GB")} km`;
+  return km >= 1 ? `${km.toFixed(1)} km` : `${Math.round(meters)} m`;
+}
+
+/** 107353 → "107,353 m" */
+export function formatElevation(meters: number): string {
+  return `${Math.round(meters).toLocaleString("en-GB")} m`;
 }
 
 /** 3725 s → "1h 02m", 1520 s → "25m" */

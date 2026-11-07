@@ -14,7 +14,15 @@ import {
   type DayTotals,
   type YearTotals,
 } from "../lib/strava/store.ts";
-import { formatDate, formatDistance, formatDuration, formatPace, MONTHS, sportLabel } from "../lib/strava/format.ts";
+import {
+  formatDate,
+  formatDistance,
+  formatDuration,
+  formatElevation,
+  formatPace,
+  MONTHS,
+  sportLabel,
+} from "../lib/strava/format.ts";
 
 export const prerender = false;
 
@@ -27,13 +35,13 @@ const today = now.toISOString().slice(0, 10);
 let years: number[] = [];
 let year = currentYear;
 let latest: Activity[] = [];
-let sports: YearTotals[] = [];
+let totals: YearTotals[] = [];
 let days: DayTotals[] = [];
 try {
   years = await activityYears(env.DB);
   const requested = Number(Astro.url.searchParams.get("year"));
   year = years.includes(requested) ? requested : years.includes(currentYear) ? currentYear : (years[0] ?? currentYear);
-  [latest, sports, days] = await Promise.all([
+  [latest, totals, days] = await Promise.all([
     recentActivities(env.DB, 8, year),
     yearTotals(env.DB, year),
     dayTotals(env.DB, year),
@@ -45,11 +53,32 @@ try {
 // Dates show without the year when it's the selected one ("3 mar", not "3 mar 2025").
 const yearStart = new Date(Date.UTC(year, 0, 1));
 
+// One row per sport as shown: Ride, MountainBikeRide, GravelRide… all add up under "mtb".
+interface SportRow {
+  label: string;
+  sportType: string;
+  count: number;
+  distance: number;
+  time: number;
+  elevation: number;
+}
+const bySport = new Map<string, SportRow>();
+for (const t of totals) {
+  const label = sportLabel(t.sport_type);
+  const row = bySport.get(label) ?? { label, sportType: t.sport_type, count: 0, distance: 0, time: 0, elevation: 0 };
+  row.count += t.count;
+  row.distance += t.distance;
+  row.time += t.moving_time;
+  row.elevation += t.elevation;
+  bySport.set(label, row);
+}
+const sports = [...bySport.values()].sort((a, b) => b.time - a.time);
+
 const total = sports.reduce(
   (sum, s) => ({
     count: sum.count + s.count,
     distance: sum.distance + s.distance,
-    time: sum.time + s.moving_time,
+    time: sum.time + s.time,
     elevation: sum.elevation + s.elevation,
   }),
   { count: 0, distance: 0, time: 0, elevation: 0 },
@@ -58,6 +87,7 @@ const total = sports.reduce(
 // One small GitHub-style calendar per month: a column per week (Monday first), a square per day.
 const CELL = 9;
 const GAP = 3;
+const HEIGHT = 7 * (CELL + GAP) - GAP;
 const byDay = new Map(days.map((d) => [d.day, d]));
 const level = (seconds: number) => (seconds < 30 * 60 ? 1 : seconds < 60 * 60 ? 2 : seconds < 2 * 3600 ? 3 : 4);
 const months = Array.from({ length: 12 }, (_, month) => {
@@ -65,18 +95,16 @@ const months = Array.from({ length: 12 }, (_, month) => {
   const length = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   const offset = (first.getUTCDay() + 6) % 7;
   const cells = Array.from({ length }, (_, i) => {
-    const date = new Date(Date.UTC(year, month, i + 1));
-    const key = date.toISOString().slice(0, 10);
-    const totals = byDay.get(key);
+    const key = new Date(Date.UTC(year, month, i + 1)).toISOString().slice(0, 10);
+    const day = byDay.get(key);
     const label = formatDate(key, yearStart);
+    const sportsThatDay = day ? [...new Set(day.sports.split(",").map(sportLabel))].join(", ") : "";
     return {
       x: Math.floor((offset + i) / 7) * (CELL + GAP),
       y: ((offset + i) % 7) * (CELL + GAP),
-      level: totals ? level(totals.moving_time) : 0,
+      level: day ? level(day.moving_time) : 0,
       future: key > today,
-      title: totals
-        ? `${label} · ${totals.sports.split(",").map(sportLabel).join(", ")} · ${formatDuration(totals.moving_time)}${totals.distance > 0 ? ` · ${formatDistance(totals.distance)}` : ""}`
-        : label,
+      title: day ? `${label} · ${sportsThatDay} · ${formatDuration(day.moving_time)}` : label,
     };
   });
   const active = days.filter((d) => Number(d.day.slice(5, 7)) === month + 1);
@@ -89,8 +117,6 @@ const months = Array.from({ length: 12 }, (_, month) => {
     future: year > currentYear || (year === currentYear && month > now.getUTCMonth()),
   };
 });
-const HEIGHT = 7 * (CELL + GAP) - GAP;
-const meters = (m: number) => `${Math.round(m).toLocaleString("en-GB")} m up`;
 
 Astro.response.headers.set("Cache-Control", "public, max-age=300");
 ---
@@ -99,17 +125,6 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
   <header>
     <h1>activities</h1>
     <p class="muted">my {year} in training, from strava. a square per day, darker means longer.</p>
-    {
-      years.length > 1 && (
-        <nav class="years" aria-label="Year">
-          {years.map((y) => (
-            <a href={y === currentYear ? "/activities" : `/activities?year=${y}`} aria-current={y === year ? "page" : undefined}>
-              {y}
-            </a>
-          ))}
-        </nav>
-      )
-    }
   </header>
 
   {
@@ -117,17 +132,30 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
       <p class="muted">no activities yet.</p>
     ) : (
       <>
-        <section class="overview" aria-label={`${year} so far`}>
-          <p class="summary">
-            <span class="nowrap">{total.count} activities</span> · <span class="nowrap">{formatDistance(total.distance)}</span> ·{" "}
-            <span class="nowrap">{formatDuration(total.time)}</span>
-            {total.elevation >= 1 && <> · <span class="nowrap">{meters(total.elevation)}</span></>}
-          </p>
+        <section class="overview" aria-label={`${year} overview`}>
+          <dl class="stats">
+            <div>
+              <dt>activities</dt>
+              <dd>{total.count}</dd>
+            </div>
+            <div>
+              <dt>distance</dt>
+              <dd>{formatDistance(total.distance)}</dd>
+            </div>
+            <div>
+              <dt>time</dt>
+              <dd>{formatDuration(total.time)}</dd>
+            </div>
+            <div>
+              <dt>elevation</dt>
+              <dd>{formatElevation(total.elevation)}</dd>
+            </div>
+          </dl>
 
           <ol class="months">
             {months.map((m) => (
               <li class:list={{ future: m.future }}>
-                <span class="month-name">{m.name}</span>
+                <span class="label">{m.name}</span>
                 <svg width={m.width} height={HEIGHT} viewBox={`0 0 ${m.width} ${HEIGHT}`} role="img" aria-label={`${m.name}: ${m.count} activities`}>
                   {m.cells.map((c) => (
                     <rect x={c.x} y={c.y} width={CELL} height={CELL} rx="1.5" class={c.future ? "future" : `l${c.level}`}>
@@ -135,121 +163,151 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
                     </rect>
                   ))}
                 </svg>
-                <span class="month-total muted">{m.count > 0 ? `${m.count}× · ${formatDuration(m.time)}` : m.future ? "" : "—"}</span>
+                <span class="label muted">{m.count > 0 ? formatDuration(m.time) : m.future ? "" : "—"}</span>
               </li>
             ))}
           </ol>
 
-          <p class="legend muted" aria-hidden="true">
-            less
-            {[0, 1, 2, 3, 4].map((l) => (
-              <svg width={CELL} height={CELL} viewBox={`0 0 ${CELL} ${CELL}`}>
-                <rect width={CELL} height={CELL} rx="1.5" class={`l${l}`} />
-              </svg>
-            ))}
-            more
-          </p>
+          <div class="calendar-footer">
+            {years.length > 1 && (
+              <nav class="years" aria-label="Year">
+                {years.map((y) => (
+                  <a href={y === currentYear ? "/activities" : `/activities?year=${y}`} aria-current={y === year ? "page" : undefined}>
+                    {y}
+                  </a>
+                ))}
+              </nav>
+            )}
+            <p class="legend" aria-hidden="true">
+              less
+              {[0, 1, 2, 3, 4].map((l) => (
+                <svg width={CELL} height={CELL} viewBox={`0 0 ${CELL} ${CELL}`}>
+                  <rect width={CELL} height={CELL} rx="1.5" class={`l${l}`} />
+                </svg>
+              ))}
+              more
+            </p>
+          </div>
         </section>
 
         <section aria-labelledby="by-sport">
-          <h2 id="by-sport" class="muted">by sport</h2>
-          <ul class="rows">
-            {sports.map((s) => (
-              <li>
-                <span class="sport">
-                  <SportIcon sport={s.sport_type} />
-                  {sportLabel(s.sport_type)}
-                </span>
-                <span class="muted">
-                  {s.count}× · {s.distance > 0 && `${formatDistance(s.distance)} · `}
-                  {formatDuration(s.moving_time)}
-                  {s.elevation >= 1 && ` · ${meters(s.elevation)}`}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <h2 id="by-sport">by sport</h2>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">sport</th>
+                <th scope="col" class="num">activities</th>
+                <th scope="col" class="num">distance</th>
+                <th scope="col" class="num">time</th>
+                <th scope="col" class="num optional">elevation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sports.map((s) => (
+                <tr>
+                  <th scope="row">
+                    <span class="sport">
+                      <SportIcon sport={s.sportType} />
+                      {s.label}
+                    </span>
+                  </th>
+                  <td class="num">{s.count}</td>
+                  <td class="num">{s.distance > 0 ? formatDistance(s.distance) : "—"}</td>
+                  <td class="num">{formatDuration(s.time)}</td>
+                  <td class="num optional">{s.elevation >= 1 ? formatElevation(s.elevation) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
 
         <section aria-labelledby="latest">
-          <h2 id="latest" class="muted">{year === currentYear ? "latest" : `last of ${year}`}</h2>
-          <ul class="rows">
-            {latest.map((a) => {
-              const pace = a.distance > 0 ? formatPace(a.sport_type, a.average_speed) : null;
-              return (
-                <li>
-                  <span class="sport">
-                    <span class="date muted">{formatDate(a.start_date_local, yearStart)}</span>
-                    <SportIcon sport={a.sport_type} />
-                    {sportLabel(a.sport_type)}
-                  </span>
-                  <span class="muted">
-                    {a.distance > 0 && `${formatDistance(a.distance)} · `}
-                    {formatDuration(a.moving_time)}
-                    {pace && ` · ${pace}`}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          <h2 id="latest">{year === currentYear ? "latest" : `last of ${year}`}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">date</th>
+                <th scope="col">sport</th>
+                <th scope="col" class="num">distance</th>
+                <th scope="col" class="num">time</th>
+                <th scope="col" class="num optional">pace</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latest.map((a) => (
+                <tr>
+                  <td class="muted">{formatDate(a.start_date_local, yearStart)}</td>
+                  <th scope="row">
+                    <span class="sport">
+                      <SportIcon sport={a.sport_type} />
+                      {sportLabel(a.sport_type)}
+                    </span>
+                  </th>
+                  <td class="num">{a.distance > 0 ? formatDistance(a.distance) : "—"}</td>
+                  <td class="num">{formatDuration(a.moving_time)}</td>
+                  <td class="num optional">{(a.distance > 0 && formatPace(a.sport_type, a.average_speed)) || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       </>
     )
   }
 
-  <p class="credits muted">Powered by Strava</p>
+  <p class="credits">Powered by Strava</p>
 </Layout>
 
 <style>
+  /* Two text sizes only: body text for values, 12px muted for every label and heading. */
+  header,
   section {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
   }
 
-  /* Year switcher: like the main nav, faded until current or hovered. */
-  .years {
-    display: flex;
-    gap: 1rem;
-    margin-top: 0.75rem;
-    font-size: 13px;
-  }
-
-  .years a {
-    text-decoration: none;
-    opacity: 0.5;
-    transition: opacity 150ms;
-  }
-
-  .years a:hover,
-  .years a:focus-visible,
-  .years a[aria-current="page"] {
-    opacity: 1;
-  }
-
-  .years a[aria-current="page"] {
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 5px;
-    text-decoration-color: color-mix(in srgb, var(--foreground-color) 35%, transparent);
-  }
-
   .overview {
     gap: var(--space-4);
   }
 
+  h2,
+  dt,
+  th[scope="col"],
+  .label,
+  .legend,
+  .credits {
+    font-size: 12px;
+    line-height: 1.5;
+    font-weight: inherit;
+    color: var(--muted);
+  }
+
+  /* Month names read as labels, but in the text colour so the grid has anchors. */
+  .label:not(.muted) {
+    color: inherit;
+  }
+
   h2 {
-    font-size: var(--small);
+    margin-bottom: var(--space-2);
   }
 
-  ul,
-  ol {
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Key numbers for the year. */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-3);
     margin: 0;
-    padding: 0;
-    list-style: none;
   }
 
-  .nowrap {
-    white-space: nowrap;
+  .stats dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
   }
 
   /* Twelve small month calendars. */
@@ -257,6 +315,9 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--space-4) var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
   .months li {
@@ -269,13 +330,7 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
     opacity: 0.5;
   }
 
-  .month-name,
-  .month-total {
-    font-size: var(--small);
-    line-height: 1.5;
-  }
-
-  .month-total {
+  .months .label.muted {
     min-height: 1.5em;
     font-variant-numeric: tabular-nums;
   }
@@ -314,36 +369,79 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
     fill-opacity: 0.03;
   }
 
+  /* Years on the left, legend on the right, right under the squares. */
+  .calendar-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .years {
+    display: flex;
+    gap: var(--space-3);
+    font-size: 13px;
+  }
+
+  .years a {
+    text-decoration: none;
+    opacity: 0.5;
+    transition: opacity 150ms;
+  }
+
+  .years a:hover,
+  .years a:focus-visible,
+  .years a[aria-current="page"] {
+    opacity: 1;
+  }
+
+  .years a[aria-current="page"] {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 5px;
+    text-decoration-color: color-mix(in srgb, var(--foreground-color) 35%, transparent);
+  }
+
   .legend {
     display: flex;
     align-items: center;
     gap: 3px;
-    font-size: var(--small);
+    margin-left: auto;
   }
 
   .legend svg:first-of-type {
-    margin-left: 0.25rem;
+    margin-left: var(--space-1);
   }
 
   .legend svg:last-of-type {
-    margin-right: 0.25rem;
+    margin-right: var(--space-1);
   }
 
-  .rows li {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-3);
+  /* Tables: the same columns style everywhere, hairlines between rows. */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
     padding: var(--space-2) 0;
-    border-top: var(--hairline);
+    text-align: left;
+    font-weight: inherit;
+    white-space: nowrap;
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground-color) 10%, transparent);
   }
 
-  .rows li:last-child {
-    border-bottom: var(--hairline);
+  th + th,
+  th + td,
+  td + td,
+  td + th {
+    padding-left: var(--space-3);
   }
 
-  .rows li > .muted {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
+  thead th {
+    padding-top: 0;
+    border-bottom-color: color-mix(in srgb, var(--foreground-color) 25%, transparent);
   }
 
   .sport {
@@ -352,31 +450,21 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
     gap: var(--space-2);
   }
 
-  .date {
-    display: inline-block;
-    min-width: 4.5rem;
-  }
-
-  .credits {
-    font-size: var(--small);
-    line-height: 1.5;
-  }
-
   @media (max-width: 480px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .months {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    /* Label on top, numbers underneath, instead of both squeezed onto one line. */
-    .rows li {
-      flex-direction: column;
-      gap: 0;
+    table {
+      font-size: 13px;
     }
 
-    .rows li > .muted {
-      text-align: left;
-      font-size: var(--small);
-      line-height: 1.5;
+    .optional {
+      display: none;
     }
   }
 </style>
