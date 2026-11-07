@@ -6,6 +6,7 @@ import barcelonaCampNou from "../assets/gallery/2025-barcelona-camp-nou.jpg";
 import barcelonaTibidabo from "../assets/gallery/2025-barcelona-tibidabo.jpg";
 import tarifaSunset from "../assets/gallery/2021-tarifa-sunset.jpg";
 import switzerlandOeschinensee from "../assets/gallery/2023-switzerland-oeschinensee.jpg";
+import londonFulham from "../assets/gallery/2025-london-fulham.jpg";
 import madridAtleticoBarcelona from "../assets/gallery/2026-madrid-atletico-barcelona.jpg";
 
 export interface Photo {
@@ -51,5 +52,10 @@ export const photos: Photo[] = [
     src: andorraForest,
     title: "Andorra, 2023",
     description: "A casual day in the snowy forest.",
+  },
+  {
+    src: londonFulham,
+    title: "London, 2025",
+    description: "Parent and child day out at Craven Cottage for a Fulham match.",
   },
 ];
