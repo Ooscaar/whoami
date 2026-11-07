@@ -1,8 +1,9 @@
 // @ts-check
 import { defineConfig, fontProviders } from "astro/config";
 
-// Static output — served by Cloudflare Workers static assets (see wrangler.jsonc).
+// Static output — served by Cloudflare Workers static assets (see cloudflare.config.ts).
 export default defineConfig({
+  site: "https://oscarperezcastillo.com",
   // Emit photos.html (served at /photos) instead of photos/index.html,
   // so links don't bounce through a /photos -> /photos/ redirect.
   build: { format: "file" },

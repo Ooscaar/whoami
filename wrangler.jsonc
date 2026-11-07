@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "whoami",
   "compatibility_date": "2026-11-06",
+  "routes": [{ "pattern": "oscarperezcastillo.com", "custom_domain": true }],
   // Build the static site before every `wrangler deploy` / `wrangler dev`,
   // so Workers Builds works even without a build command configured.
   "build": {
