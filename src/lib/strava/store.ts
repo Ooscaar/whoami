@@ -117,12 +117,24 @@ export async function latestStartTime(db: D1Database): Promise<number | null> {
   return row?.latest ? Math.floor(Date.parse(row.latest) / 1000) : null;
 }
 
-export async function recentActivities(db: D1Database, limit = 30): Promise<Activity[]> {
+/** The newest activities, optionally only from one calendar year (by local start date). */
+export async function recentActivities(db: D1Database, limit = 30, year?: number): Promise<Activity[]> {
   const { results } = await db
-    .prepare("SELECT * FROM activities ORDER BY start_date DESC LIMIT ?1")
-    .bind(limit)
+    .prepare(
+      `SELECT * FROM activities WHERE ?2 IS NULL OR substr(start_date_local, 1, 4) = ?2
+       ORDER BY start_date DESC LIMIT ?1`,
+    )
+    .bind(limit, year === undefined ? null : String(year))
     .all<Activity>();
   return results;
+}
+
+/** Years that have at least one activity, newest first. */
+export async function activityYears(db: D1Database): Promise<number[]> {
+  const { results } = await db
+    .prepare("SELECT DISTINCT substr(start_date_local, 1, 4) AS year FROM activities ORDER BY year DESC")
+    .all<{ year: string }>();
+  return results.map((row) => Number(row.year));
 }
 
 export interface YearTotals {
