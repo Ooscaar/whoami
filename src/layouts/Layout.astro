@@ -12,6 +12,7 @@ const { title, description = "Òscar Pérez" } = Astro.props;
 const nav = [
   { label: "photos", href: "/photos" },
   { label: "music", href: "/music" },
+  { label: "activities", href: "/activities" },
 ];
 
 const current = Astro.url.pathname.replace(/(\.html|\/)$/, "").replace(/\/index$/, "") || "/";
@@ -176,6 +177,16 @@ const updated = new Date().toISOString().replace(/\.\d+Z$/, "Z");
   .links {
     display: flex;
     gap: 1.5rem;
+  }
+
+  nav .name {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 480px) {
+    .links {
+      gap: 1rem;
+    }
   }
 
   nav a {

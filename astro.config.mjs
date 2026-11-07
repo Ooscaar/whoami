@@ -1,9 +1,13 @@
 // @ts-check
 import { defineConfig, fontProviders } from "astro/config";
+import cloudflare from "@astrojs/cloudflare";
 
-// Static output — served by Cloudflare Workers static assets (see cloudflare.config.ts).
+// Static by default; pages with `prerender = false` (activities, /api/strava/*) render on the
+// Worker via the Cloudflare adapter. Served by Cloudflare Workers (see cloudflare.config.ts).
 export default defineConfig({
+  adapter: cloudflare({ imageService: "compile", prerenderEnvironment: "node" }),
   site: "https://oscarperezcastillo.com",
+  session: false,
   // Emit photos.html (served at /photos) instead of photos/index.html,
   // so links don't bounce through a /photos -> /photos/ redirect.
   build: { format: "file" },

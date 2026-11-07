@@ -4,5 +4,5 @@ export default defineWranglerConfig({
 	build: {
 		command: "npm run build",
 	},
-	assetsDirectory: "./dist",
+	assetsDirectory: "./dist/client",
 });
