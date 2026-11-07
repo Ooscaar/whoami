@@ -17,7 +17,6 @@ const large = await Promise.all(
         data-full={large[i].src}
         data-width={large[i].attributes.width}
         data-height={large[i].attributes.height}
-        data-title={photo.title}
         data-description={photo.description}
         aria-label={`Open ${photo.title}`}
       >
@@ -48,9 +47,17 @@ const large = await Promise.all(
     <div class="slide"><img alt="" draggable="false" /></div>
   </div>
 
+  <!-- Every caption is stacked in the same grid cell and only the current one is shown, so
+       the caption area is always as tall as the longest one and the photo never resizes. -->
   <div class="caption">
-    <p class="title"></p>
-    <p class="description"></p>
+    {
+      photos.map((photo) => (
+        <div>
+          <p class="title">{photo.title}</p>
+          <p class="description">{photo.description}</p>
+        </div>
+      ))
+    }
   </div>
 </dialog>
 
@@ -84,7 +91,6 @@ const large = await Promise.all(
       full: button.dataset.full ?? "",
       width: button.dataset.width ?? "",
       height: button.dataset.height ?? "",
-      title: button.dataset.title ?? "",
       description: button.dataset.description ?? "",
     }));
     const n = items.length;
@@ -92,8 +98,7 @@ const large = await Promise.all(
     const track = dialog.querySelector<HTMLElement>(".track")!;
     let slides = [...track.querySelectorAll<HTMLElement>(".slide")]; // [prev, current, next]
     const counter = dialog.querySelector(".counter")!;
-    const title = dialog.querySelector(".title")!;
-    const description = dialog.querySelector(".description")!;
+    const captions = [...dialog.querySelectorAll<HTMLElement>(".caption > div")];
     let index = 0;
     let width = 0;
     let animating = false;
@@ -126,10 +131,8 @@ const large = await Promise.all(
         fill(slide, index + k - 1);
         slide.setAttribute("aria-hidden", k === 1 ? "false" : "true");
       });
-      const item = at(index);
       counter.textContent = `${index + 1} / ${n}`;
-      title.textContent = item.title;
-      description.textContent = item.description;
+      captions.forEach((caption, i) => caption.classList.toggle("current", i === index));
     };
 
     const measure = () => (width = track.clientWidth + GAP);
@@ -515,6 +518,16 @@ const large = await Promise.all(
     margin: 0 auto;
     padding: 0 1.5rem calc(1.5rem + env(safe-area-inset-bottom));
     text-align: center;
+    display: grid;
+  }
+
+  .caption > div {
+    grid-area: 1 / 1;
+    visibility: hidden;
+  }
+
+  .caption > .current {
+    visibility: visible;
   }
 
   .caption .title {
